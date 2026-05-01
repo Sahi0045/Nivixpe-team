@@ -109,17 +109,20 @@ export default function LeaveManagementPage() {
 
       <div className="p-6 space-y-6">
         {/* Request Leave Button - Prominent at Top */}
-        <div className="flex justify-between items-center">
-          <h2 className="text-2xl font-bold text-foreground">
-            {canApproveLeave ? 'Leave Approval Dashboard' : 'My Leave Management'}
-          </h2>
-          <button
-            onClick={() => setShowRequestForm(!showRequestForm)}
-            className="flex items-center gap-2 px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors shadow-lg font-semibold"
-          >
-            <Plus className="h-5 w-5" />
-            {showRequestForm ? 'Cancel Request' : 'Request Leave'}
-          </button>
+        <div className="bg-gradient-to-r from-purple-600 to-purple-700 rounded-lg p-6 shadow-lg">
+          <div className="flex justify-between items-center">
+            <div className="text-white">
+              <h2 className="text-2xl font-bold mb-2">Need Time Off?</h2>
+              <p className="text-purple-100">Submit a leave request for approval by your team lead</p>
+            </div>
+            <button
+              onClick={() => setShowRequestForm(!showRequestForm)}
+              className="flex items-center gap-2 px-8 py-4 bg-white text-purple-700 rounded-lg hover:bg-purple-50 transition-colors shadow-lg font-bold text-lg"
+            >
+              <Plus className="h-6 w-6" />
+              {showRequestForm ? 'Cancel Request' : 'Request Leave'}
+            </button>
+          </div>
         </div>
 
         {/* Leave Request Form */}
