@@ -4,8 +4,9 @@ import { Header } from '@/components/header';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useQuery, useMutation } from 'convex/react';
 import { api } from '@/convex/_generated/api';
-import { CheckCircle, AlertCircle, Clock, Info } from 'lucide-react';
+import { CheckCircle, AlertCircle, Clock, Info, Plus } from 'lucide-react';
 import { useAuth } from '@/app/providers';
+import { useState } from 'react';
 
 export default function LeaveManagementPage() {
   const { user } = useAuth();
@@ -14,8 +15,18 @@ export default function LeaveManagementPage() {
   const allLeaveRequests = useQuery(api.leaveRequests.getAll) || [];
   const myLeaveRequests = useQuery(api.leaveRequests.getByEmail, user ? { email: user.email } : "skip") || [];
   
-  // Mutation for updating leave status
+  // Mutations
   const updateLeaveStatus = useMutation(api.leaveRequests.updateStatus);
+  const createLeaveRequest = useMutation(api.leaveRequests.create);
+  
+  // Form state
+  const [showRequestForm, setShowRequestForm] = useState(false);
+  const [formData, setFormData] = useState({
+    startDate: '',
+    endDate: '',
+    reason: '',
+    type: 'vacation' as 'vacation' | 'sick' | 'personal',
+  });
   
   // Only 4 heads can approve/reject: CEO (Sahith), CTO (Shubham), CSO (Swaraag), CMO (Abhiram)
   const canApproveLeave = user?.isSuperAdmin || user?.role === 'CTO' || user?.role === 'CSO' || user?.role === 'CMO';
@@ -59,6 +70,36 @@ export default function LeaveManagementPage() {
     }
   };
 
+  const handleSubmitRequest = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user) return;
+    
+    try {
+      await createLeaveRequest({
+        employeeName: user.name,
+        employeeEmail: user.email,
+        startDate: formData.startDate,
+        endDate: formData.endDate,
+        reason: formData.reason,
+        status: 'pending',
+        type: formData.type,
+      });
+      
+      // Reset form and close modal
+      setFormData({
+        startDate: '',
+        endDate: '',
+        reason: '',
+        type: 'vacation',
+      });
+      setShowRequestForm(false);
+      alert('Leave request submitted successfully!');
+    } catch (error) {
+      console.error('Error submitting leave request:', error);
+      alert('Failed to submit leave request');
+    }
+  };
+
   return (
     <div className="flex-1 overflow-y-auto">
       <Header 
@@ -67,6 +108,112 @@ export default function LeaveManagementPage() {
       />
 
       <div className="p-6 space-y-6">
+        {/* Request Leave Button - Prominent at Top */}
+        <div className="flex justify-between items-center">
+          <h2 className="text-2xl font-bold text-foreground">
+            {canApproveLeave ? 'Leave Approval Dashboard' : 'My Leave Management'}
+          </h2>
+          <button
+            onClick={() => setShowRequestForm(!showRequestForm)}
+            className="flex items-center gap-2 px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors shadow-lg font-semibold"
+          >
+            <Plus className="h-5 w-5" />
+            {showRequestForm ? 'Cancel Request' : 'Request Leave'}
+          </button>
+        </div>
+
+        {/* Leave Request Form */}
+        {showRequestForm && (
+          <Card className="border-purple-300 bg-white">
+            <CardHeader>
+              <CardTitle className="text-purple-900">Submit Leave Request</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <form onSubmit={handleSubmitRequest} className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Start Date <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="date"
+                      required
+                      value={formData.startDate}
+                      onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      End Date <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="date"
+                      required
+                      value={formData.endDate}
+                      onChange={(e) => setFormData({ ...formData, endDate: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Leave Type <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    required
+                    value={formData.type}
+                    onChange={(e) => setFormData({ ...formData, type: e.target.value as any })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  >
+                    <option value="vacation">Vacation</option>
+                    <option value="sick">Sick Leave</option>
+                    <option value="personal">Personal</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Reason <span className="text-red-500">*</span>
+                  </label>
+                  <textarea
+                    required
+                    value={formData.reason}
+                    onChange={(e) => setFormData({ ...formData, reason: e.target.value })}
+                    rows={3}
+                    placeholder="Please provide a reason for your leave request..."
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  />
+                </div>
+
+                <div className="flex items-center gap-3 pt-2">
+                  <button
+                    type="submit"
+                    className="px-6 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors font-medium"
+                  >
+                    Submit Request
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowRequestForm(false)}
+                    className="px-6 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors font-medium"
+                  >
+                    Cancel
+                  </button>
+                </div>
+
+                <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                  <p className="text-sm text-blue-900">
+                    <strong>Note:</strong> Your request will be sent to the approval team (CEO, CTO, CSO, or CMO). 
+                    You'll be notified once your request is reviewed.
+                  </p>
+                </div>
+              </form>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Leave System Rules */}
         <Card className="border-blue-300 bg-blue-50">
           <CardHeader>
@@ -127,7 +274,7 @@ export default function LeaveManagementPage() {
               <CardTitle className="text-green-900">My Leave Request History</CardTitle>
             </CardHeader>
             <CardContent className="text-sm text-green-900">
-              <p>View your leave request status and history. To raise a new leave request, contact your team lead or use the request form.</p>
+              <p>View your leave request status and history. Use the "Request Leave" button above to submit a new leave request.</p>
             </CardContent>
           </Card>
         )}
