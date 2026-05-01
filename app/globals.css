@@ -123,3 +123,144 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* Mobile Responsive Utilities */
+@layer utilities {
+  /* Mobile-first responsive text sizes */
+  .text-responsive-xs {
+    @apply text-xs sm:text-sm;
+  }
+  
+  .text-responsive-sm {
+    @apply text-sm sm:text-base;
+  }
+  
+  .text-responsive-base {
+    @apply text-base sm:text-lg;
+  }
+  
+  .text-responsive-lg {
+    @apply text-lg sm:text-xl;
+  }
+  
+  .text-responsive-xl {
+    @apply text-xl sm:text-2xl;
+  }
+  
+  .text-responsive-2xl {
+    @apply text-2xl sm:text-3xl;
+  }
+  
+  /* Mobile-friendly padding */
+  .p-mobile {
+    @apply p-3 sm:p-4 md:p-6;
+  }
+  
+  .px-mobile {
+    @apply px-3 sm:px-4 md:px-6;
+  }
+  
+  .py-mobile {
+    @apply py-3 sm:py-4 md:py-6;
+  }
+  
+  /* Mobile-friendly spacing */
+  .space-y-mobile > * + * {
+    @apply mt-3 sm:mt-4 md:mt-6;
+  }
+  
+  .gap-mobile {
+    @apply gap-2 sm:gap-3 md:gap-4;
+  }
+  
+  /* Mobile-friendly buttons */
+  .btn-mobile {
+    @apply px-3 py-2 text-sm sm:px-4 sm:py-2.5 sm:text-base;
+  }
+  
+  /* Hide on mobile */
+  .hide-mobile {
+    @apply hidden sm:block;
+  }
+  
+  /* Show only on mobile */
+  .show-mobile {
+    @apply block sm:hidden;
+  }
+  
+  /* Mobile-friendly cards */
+  .card-mobile {
+    @apply rounded-lg sm:rounded-xl;
+  }
+  
+  /* Mobile-friendly tables */
+  .table-mobile {
+    @apply text-xs sm:text-sm;
+  }
+  
+  /* Touch-friendly tap targets (minimum 44x44px) */
+  .tap-target {
+    @apply min-h-[44px] min-w-[44px];
+  }
+}
+
+/* Mobile-specific overrides */
+@media (max-width: 640px) {
+  /* Ensure forms are mobile-friendly */
+  input[type="text"],
+  input[type="email"],
+  input[type="password"],
+  input[type="url"],
+  input[type="date"],
+  input[type="time"],
+  input[type="number"],
+  select,
+  textarea {
+    @apply text-base; /* Prevents zoom on iOS */
+    font-size: 16px !important;
+  }
+  
+  /* Mobile-friendly modals */
+  .modal-mobile {
+    @apply max-h-[90vh] overflow-y-auto;
+  }
+  
+  /* Scrollable tables on mobile */
+  .table-container {
+    @apply overflow-x-auto -mx-3 px-3;
+  }
+  
+  /* Stack buttons vertically on mobile */
+  .button-group-mobile {
+    @apply flex-col space-y-2;
+  }
+  
+  /* Full-width buttons on mobile */
+  .btn-full-mobile {
+    @apply w-full;
+  }
+}
+
+/* Tablet-specific styles */
+@media (min-width: 641px) and (max-width: 1024px) {
+  .grid-responsive {
+    @apply grid-cols-2;
+  }
+}
+
+/* Desktop styles */
+@media (min-width: 1025px) {
+  .grid-responsive {
+    @apply grid-cols-3;
+  }
+}
+
+/* Improve touch targets for mobile */
+@media (hover: none) and (pointer: coarse) {
+  button,
+  a,
+  input[type="checkbox"],
+  input[type="radio"] {
+    @apply min-h-[44px] min-w-[44px];
+  }
+}

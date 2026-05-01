@@ -19,16 +19,16 @@ export function Header({ title, subtitle }: HeaderProps) {
 
   return (
     <div className="border-b border-border bg-card">
-      <div className="px-6 py-4 flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">{title}</h1>
-          {subtitle && <p className="text-sm text-muted-foreground mt-1">{subtitle}</p>}
+      <div className="px-mobile py-3 sm:py-4 flex items-center justify-between">
+        <div className="flex-1 min-w-0">
+          <h1 className="text-responsive-xl font-bold text-foreground truncate">{title}</h1>
+          {subtitle && <p className="text-responsive-xs text-muted-foreground mt-1 line-clamp-2">{subtitle}</p>}
         </div>
-        <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon">
+        <div className="flex items-center gap-2 sm:gap-4 ml-4">
+          <Button variant="ghost" size="icon" className="tap-target hidden sm:flex">
             <Bell className="w-4 h-4" />
           </Button>
-          <Button variant="ghost" size="icon">
+          <Button variant="ghost" size="icon" className="tap-target hidden sm:flex">
             <Settings className="w-4 h-4" />
           </Button>
           <Button
@@ -36,8 +36,9 @@ export function Header({ title, subtitle }: HeaderProps) {
             size="icon"
             onClick={handleLogout}
             title="Logout"
+            className="tap-target"
           >
-            <LogOut className="w-4 h-4" />
+            <LogOut className="w-4 h-4 sm:w-5 sm:h-5" />
           </Button>
         </div>
       </div>
