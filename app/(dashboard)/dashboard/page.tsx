@@ -75,7 +75,8 @@ export default function DashboardPage() {
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
-                {myTasks.map((task) => (
+                {/* Remove duplicates by using unique task IDs */}
+                {Array.from(new Map(myTasks.map(task => [task._id, task])).values()).map((task) => (
                   <div
                     key={task._id}
                     className="flex items-start justify-between p-3 rounded-lg bg-white border border-purple-200"
