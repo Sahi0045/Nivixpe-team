@@ -62,3 +62,17 @@ export const updateStatus = mutation({
     await ctx.db.patch(id, updates as any);
   },
 });
+
+
+// Delete all leave requests (for clearing old data)
+export const deleteAll = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const allRequests = await ctx.db.query("leaveRequests").collect();
+    for (const request of allRequests) {
+      await ctx.db.delete(request._id);
+    }
+    console.log(`Deleted ${allRequests.length} leave requests`);
+    return { deleted: allRequests.length };
+  },
+});
