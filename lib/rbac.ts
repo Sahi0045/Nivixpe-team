@@ -101,6 +101,7 @@ export const ROLE_PERMISSIONS: Record<string, string[]> = {
     'meetings',
     'attendance',
     'leave-management',
+    'proof-of-work',
     'notifications',
     'settings',
   ],
