@@ -148,14 +148,14 @@ export function canAssignTasksTo(user: User | null, targetMember: any): boolean 
   // CSO (Swaraag) can assign to Business team
   if (user.role === 'CSO' && targetMember.team === 'Business') return true;
   
-  // CMO (Abhiram) can assign to Marketing team
-  if (user.role === 'CMO' && targetMember.team === 'Marketing') return true;
+  // CMO (Abhiram) can assign to Marketing and Design teams
+  if (user.role === 'CMO' && (targetMember.team === 'Marketing' || targetMember.team === 'Design')) return true;
   
   // DCMO (Bhavika) can assign to Marketing team
   if (user.role === 'DCMO' && targetMember.team === 'Marketing') return true;
   
-  // COO can assign to Operations and Business team
-  if (user.role === 'COO' && (targetMember.team === 'Business' || targetMember.department === 'Operations')) return true;
+  // COO can assign to Operations, Marketing, and Design teams
+  if (user.role === 'COO' && (targetMember.team === 'Marketing' || targetMember.team === 'Design' || targetMember.department === 'Operations')) return true;
   
   // Legal head can assign to Legal team
   if (user.role === 'Legal' && targetMember.team === 'Legal') return true;
@@ -177,9 +177,9 @@ export function getAssignableMembers(user: User | null, allMembers: any[]): any[
     return allMembers.filter(m => m.team === 'Business');
   }
   
-  // CMO can assign to Marketing team
+  // CMO can assign to Marketing and Design teams
   if (user.role === 'CMO') {
-    return allMembers.filter(m => m.team === 'Marketing');
+    return allMembers.filter(m => m.team === 'Marketing' || m.team === 'Design');
   }
   
   // DCMO can assign to Marketing team
@@ -187,9 +187,9 @@ export function getAssignableMembers(user: User | null, allMembers: any[]): any[
     return allMembers.filter(m => m.team === 'Marketing');
   }
   
-  // COO can assign to Operations and Business team
+  // COO can assign to Operations, Marketing, and Design teams
   if (user.role === 'COO') {
-    return allMembers.filter(m => m.team === 'Business' || m.department === 'Operations');
+    return allMembers.filter(m => m.team === 'Marketing' || m.team === 'Design' || m.department === 'Operations');
   }
   
   // Legal can assign to Legal team
@@ -221,9 +221,9 @@ export function canViewTeamTasks(user: User | null, taskAssignee: string, allMem
   
   // Team heads can view their team's tasks
   if (user.role === 'CSO' && assigneeMember.team === 'Business') return true;
-  if (user.role === 'CMO' && assigneeMember.team === 'Marketing') return true;
+  if (user.role === 'CMO' && (assigneeMember.team === 'Marketing' || assigneeMember.team === 'Design')) return true;
   if (user.role === 'DCMO' && assigneeMember.team === 'Marketing') return true;
-  if (user.role === 'COO' && (assigneeMember.team === 'Business' || assigneeMember.department === 'Operations')) return true;
+  if (user.role === 'COO' && (assigneeMember.team === 'Marketing' || assigneeMember.team === 'Design' || assigneeMember.department === 'Operations')) return true;
   if (user.role === 'Legal' && assigneeMember.team === 'Legal') return true;
   
   return false;
@@ -258,7 +258,7 @@ export function getTeamMembers(user: User | null, allMembers: any[]): any[] {
     return allMembers.filter((m) => m.team === 'Legal');
   }
   if (user.role === 'CMO') {
-    return allMembers.filter((m) => m.team === 'Marketing');
+    return allMembers.filter((m) => m.team === 'Marketing' || m.team === 'Design');
   }
   return allMembers;
 }

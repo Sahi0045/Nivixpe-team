@@ -33,9 +33,9 @@ export default function WorkAllocationPage() {
       return TEAM_MEMBERS.filter(m => m.team === 'Business' || m.name === user.name)
     }
     
-    // CMO sees Marketing team
+    // CMO sees Marketing and Design teams
     if (user.role === 'CMO') {
-      return TEAM_MEMBERS.filter(m => m.team === 'Marketing' || m.name === user.name)
+      return TEAM_MEMBERS.filter(m => m.team === 'Marketing' || m.team === 'Design' || m.name === user.name)
     }
     
     // DCMO sees Marketing team
@@ -43,9 +43,9 @@ export default function WorkAllocationPage() {
       return TEAM_MEMBERS.filter(m => m.team === 'Marketing' || m.name === user.name)
     }
     
-    // COO sees Business/Operations
+    // COO sees Marketing, Design, and Operations teams
     if (user.role === 'COO') {
-      return TEAM_MEMBERS.filter(m => m.team === 'Business' || m.name === user.name)
+      return TEAM_MEMBERS.filter(m => m.team === 'Marketing' || m.team === 'Design' || m.department === 'Operations' || m.name === user.name)
     }
     
     // Everyone else sees only themselves

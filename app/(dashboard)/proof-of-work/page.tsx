@@ -7,6 +7,8 @@ import { useQuery, useMutation } from 'convex/react';
 import { api } from '@/convex/_generated/api';
 import { Briefcase, CheckCircle, Calendar, Plus, Upload } from 'lucide-react';
 import { useState } from 'react';
+import { TEAM_MEMBERS } from '@/lib/mock-data';
+import { canViewTeamTasks, canAssignTasks } from '@/lib/rbac';
 
 export default function ProofOfWorkPage() {
   const { user } = useAuth();
@@ -25,9 +27,13 @@ export default function ProofOfWorkPage() {
   // Mutation
   const createProofOfWork = useMutation(api.proofOfWork.create);
 
-  // Show all for CEO/CTO, only own for others
+  // Show all for CEO/CTO, team for heads, only own for others
   const canViewAll = user?.isSuperAdmin || user?.role === 'CTO';
-  const displayProofOfWork = canViewAll ? allProofOfWork : myProofOfWork;
+  const isTeamHead = canAssignTasks(user) && !canViewAll;
+  
+  const displayProofOfWork = allProofOfWork.filter(pow => 
+    canViewTeamTasks(user, pow.submittedBy, TEAM_MEMBERS)
+  );
 
   const submittedCount = displayProofOfWork.filter(p => p.status === 'submitted').length;
   const approvedCount = displayProofOfWork.filter(p => p.status === 'approved').length;
@@ -127,7 +133,7 @@ export default function ProofOfWorkPage() {
         {/* Proof of Work Submissions */}
         <Card className="border-border">
           <CardHeader>
-            <CardTitle>{canViewAll ? 'All Submissions' : 'My Submissions'}</CardTitle>
+            <CardTitle>{canViewAll ? 'All Submissions' : isTeamHead ? 'Team Submissions' : 'My Submissions'}</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
