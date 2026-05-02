@@ -3,10 +3,11 @@
 import { useAuth } from '@/app/providers';
 import { Header } from '@/components/header';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { useQuery } from 'convex/react';
+import { useQuery, useMutation } from 'convex/react';
 import { api } from '@/convex/_generated/api';
 import { TEAM_MEMBERS } from '@/lib/mock-data';
 import { AlertCircle, CheckCircle, Clock, Users, Shield, Briefcase, FileCheck } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 export default function DashboardPage() {
   const { user } = useAuth();
@@ -19,6 +20,7 @@ export default function DashboardPage() {
   const myTasks = useQuery(api.workTasks.getByAssignee, user ? { assignee: user.name } : "skip") || [];
   const attendanceRecords = useQuery(api.attendanceRecords.getByDate, { date: today }) || [];
   const myProofOfWork = useQuery(api.proofOfWork.getBySubmitter, user ? { submittedBy: user.name } : "skip") || [];
+  const updateTask = useMutation(api.workTasks.update);
   
   // RBAC: CEO sees all, others see only their own
   const displayTasks = user?.isSuperAdmin ? allTasks : myTasks;
@@ -40,6 +42,27 @@ export default function DashboardPage() {
       creator === 'CTO'
     );
   });
+
+  const handleMarkAsDone = async (taskId: any) => {
+    try {
+      await updateTask({
+        id: taskId,
+        status: 'completed',
+        completedDate: new Date().toISOString().split('T')[0],
+      });
+      alert('Task marked as completed!');
+    } catch (error) {
+      console.error('Error updating task:', error);
+      alert('Failed to update task status.');
+    }
+  };
+
+  const hasSubmittedPoW = (task: any) => {
+    return myProofOfWork.some(pow => 
+      (pow.taskId === task._id) || 
+      (pow.taskTitle === task.title && pow.submittedBy === user?.name)
+    );
+  };
 
   return (
     <div className="flex-1 overflow-y-auto">
@@ -95,19 +118,36 @@ export default function DashboardPage() {
                         <p className="text-xs text-purple-700 mt-1">Coordination: {task.coordinationWith}</p>
                       )}
                     </div>
-                    <span
-                      className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                        task.status === 'completed'
-                          ? 'bg-green-100 text-green-800'
-                          : task.status === 'ongoing'
-                          ? 'bg-yellow-100 text-yellow-800'
-                          : task.status === 'continuous'
-                          ? 'bg-blue-100 text-blue-800'
-                          : 'bg-red-100 text-red-800'
-                      }`}
-                    >
-                      {task.status.charAt(0).toUpperCase() + task.status.slice(1)}
-                    </span>
+                    <div className="flex flex-col items-end gap-2">
+                      <span
+                        className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                          task.status === 'completed'
+                            ? 'bg-green-100 text-green-800'
+                            : task.status === 'ongoing'
+                            ? 'bg-yellow-100 text-yellow-800'
+                            : task.status === 'continuous'
+                            ? 'bg-blue-100 text-blue-800'
+                            : 'bg-red-100 text-red-800'
+                        }`}
+                      >
+                        {task.status.charAt(0).toUpperCase() + task.status.slice(1)}
+                      </span>
+                      {task.status !== 'completed' && (
+                        <button
+                          onClick={() => handleMarkAsDone(task._id)}
+                          disabled={!hasSubmittedPoW(task)}
+                          className={cn(
+                            "text-xs px-2 py-1 rounded border transition-colors",
+                            hasSubmittedPoW(task)
+                              ? "bg-green-600 text-white border-green-700 hover:bg-green-700"
+                              : "bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed"
+                          )}
+                          title={!hasSubmittedPoW(task) ? "Submit Proof of Work first to mark as done" : "Mark task as completed"}
+                        >
+                          Mark as Done
+                        </button>
+                      )}
+                    </div>
                   </div>
                 ))}
               </div>

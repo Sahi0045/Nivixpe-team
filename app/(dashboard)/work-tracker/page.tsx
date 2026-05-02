@@ -24,6 +24,8 @@ export default function WorkTrackerPage() {
   // Real-time queries
   const allTasks = useQuery(api.workTasks.getAll) || [];
   const createTask = useMutation(api.workTasks.create);
+  const updateTask = useMutation(api.workTasks.update);
+  const allProofOfWork = useQuery(api.proofOfWork.getAll) || [];
   
   // Get visible tasks based on user role
   const visibleTasks = getVisibleTasks(user, allTasks, TEAM_MEMBERS);
@@ -39,6 +41,27 @@ export default function WorkTrackerPage() {
   const allOngoing = visibleTasks.filter((t) => t.status === 'ongoing');
   const allContinuous = visibleTasks.filter((t) => t.status === 'continuous');
   const allMissed = visibleTasks.filter((t) => t.status === 'missed');
+
+  const handleMarkAsDone = async (taskId: any) => {
+    try {
+      await updateTask({
+        id: taskId,
+        status: 'completed',
+        completedDate: new Date().toISOString().split('T')[0],
+      });
+      alert('Task marked as completed!');
+    } catch (error) {
+      console.error('Error updating task:', error);
+      alert('Failed to update task status.');
+    }
+  };
+
+  const hasSubmittedPoW = (task: any) => {
+    return allProofOfWork.some(pow => 
+      (pow.taskId === task._id) || 
+      (pow.taskTitle === task.title && pow.submittedBy === task.assignee)
+    );
+  };
 
   // Function to render individual tracker
   const renderIndividualTracker = (assigneeName: string) => {
@@ -105,6 +128,7 @@ export default function WorkTrackerPage() {
                   <th className="text-left p-2 font-medium">Work Allotted</th>
                   <th className="text-left p-2 font-medium">Status</th>
                   <th className="text-left p-2 font-medium">Comments</th>
+                  <th className="text-right p-2 font-medium">Action</th>
                 </tr>
               </thead>
               <tbody>
@@ -145,11 +169,27 @@ export default function WorkTrackerPage() {
                           </p>
                         )}
                       </td>
+                      <td className="p-2 text-right">
+                        {task.status !== 'completed' && task.assignee === user?.name && (
+                          <button
+                            onClick={() => handleMarkAsDone(task._id)}
+                            disabled={!hasSubmittedPoW(task)}
+                            className={`text-xs px-2 py-1 rounded border transition-colors ${
+                              hasSubmittedPoW(task)
+                                ? "bg-green-600 text-white border-green-700 hover:bg-green-700"
+                                : "bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed"
+                            }`}
+                            title={!hasSubmittedPoW(task) ? "Submit Proof of Work first to mark as done" : "Mark task as completed"}
+                          >
+                            Mark as Done
+                          </button>
+                        )}
+                      </td>
                     </tr>
                   ))
                 ) : (
                   <tr>
-                    <td colSpan={3} className="p-4 text-center text-muted-foreground">
+                    <td colSpan={4} className="p-4 text-center text-muted-foreground">
                       No tasks assigned yet
                     </td>
                   </tr>

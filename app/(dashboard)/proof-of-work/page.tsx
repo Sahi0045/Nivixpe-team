@@ -14,6 +14,7 @@ export default function ProofOfWorkPage() {
   const { user } = useAuth();
   const [showSubmitModal, setShowSubmitModal] = useState(false);
   const [submitForm, setSubmitForm] = useState({
+    taskId: '' as string,
     taskTitle: '',
     workDescription: '',
     proofLink: '',
@@ -47,6 +48,7 @@ export default function ProofOfWorkPage() {
 
     try {
       await createProofOfWork({
+        taskId: submitForm.taskId as any || undefined,
         taskTitle: submitForm.taskTitle,
         submittedBy: user.name,
         submittedByEmail: user.email,
@@ -57,7 +59,7 @@ export default function ProofOfWorkPage() {
       });
 
       setShowSubmitModal(false);
-      setSubmitForm({ taskTitle: '', workDescription: '', proofLink: '' });
+      setSubmitForm({ taskId: '', taskTitle: '', workDescription: '', proofLink: '' });
       alert('Proof of work submitted successfully!');
     } catch (error) {
       console.error('Error submitting proof of work:', error);
@@ -218,12 +220,22 @@ export default function ProofOfWorkPage() {
                   <label className="block text-sm font-medium mb-2">Task Title *</label>
                   <select
                     className="w-full px-3 py-2 border rounded"
-                    value={submitForm.taskTitle}
-                    onChange={(e) => setSubmitForm({ ...submitForm, taskTitle: e.target.value })}
+                    value={submitForm.taskId}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      if (val === 'Other') {
+                        setSubmitForm({ ...submitForm, taskId: 'Other', taskTitle: '' });
+                      } else if (val === '') {
+                        setSubmitForm({ ...submitForm, taskId: '', taskTitle: '' });
+                      } else {
+                        const task = myTasks.find(t => t._id === val);
+                        setSubmitForm({ ...submitForm, taskId: val, taskTitle: task?.title || '' });
+                      }
+                    }}
                   >
                     <option value="">Select a task</option>
                     {myTasks.map((task) => (
-                      <option key={task._id} value={task.title}>
+                      <option key={task._id} value={task._id}>
                         {task.title}
                       </option>
                     ))}
