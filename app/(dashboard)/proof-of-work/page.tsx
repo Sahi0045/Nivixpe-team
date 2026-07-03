@@ -3,7 +3,7 @@
 import { Header } from '@/components/header';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAuth } from '@/app/providers';
-import { useQuery } from 'convex/react';
+import { useQuery, useMutation } from 'convex/react';
 import { api } from '@/convex/_generated/api';
 import { Id } from '@/convex/_generated/dataModel';
 import {
@@ -18,7 +18,7 @@ import {
 } from 'lucide-react';
 import { useState, useMemo } from 'react';
 import { TEAM_MEMBERS } from '@/lib/mock-data';
-import { canViewTeamTasks, canAssignTasks } from '@/lib/rbac';
+import { canViewTeamTasks, canAssignTasks, canApprovePoW } from '@/lib/rbac';
 import { ProofSubmissionForm } from '@/components/proof-submission-form';
 import { User } from 'lucide-react';
 
@@ -80,6 +80,7 @@ export default function ProofOfWorkPage() {
   const [filterStatus, setFilterStatus] = useState('all');
 
   const allProofOfWork = useQuery(api.proofOfWork.getAll) || [];
+  const updateStatus = useMutation(api.proofOfWork.updateStatus);
   const myTasks =
     useQuery(api.workTasks.getByAssignee, user ? { assignee: user.name } : 'skip') || [];
 
@@ -111,6 +112,21 @@ export default function ProofOfWorkPage() {
   }, [allProofOfWork, user]);
 
   const taskOptions = myTasks.map((t) => ({ _id: t._id, title: t.title }));
+
+  const handleStatusUpdate = async (powId: Id<"proofOfWork">, newStatus: string, reason?: string) => {
+    try {
+      await updateStatus({
+        id: powId,
+        status: newStatus,
+        reviewedBy: user?.name,
+        reviewerRole: user?.role,
+        reviewComments: reason,
+      });
+    } catch (error) {
+      console.error('Failed to update status:', error);
+      alert('Failed to update proof of work status');
+    }
+  };
 
   return (
     <div className="flex-1 overflow-y-auto">
@@ -295,15 +311,78 @@ export default function ProofOfWorkPage() {
                           </div>
                         </div>
 
-                        {pow.reviewedBy && (
-                          <p className="text-xs text-muted-foreground">
-                            Reviewed by: {pow.reviewedBy}
-                          </p>
+                        {pow.revisionHistory && pow.revisionHistory.length > 0 ? (
+                          <div className="mt-6 border-l-2 border-slate-200 ml-2 pl-4 space-y-4">
+                            <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Audit Timeline</h4>
+                            {pow.revisionHistory.map((history: any, index: number) => (
+                              <div key={index} className="relative">
+                                <div className="absolute -left-[21px] top-1.5 h-2 w-2 rounded-full bg-slate-400 border border-white" />
+                                <div className="flex flex-col">
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <span className={`text-sm font-medium capitalize ${
+                                      history.action === 'approved' ? 'text-green-600' :
+                                      history.action === 'rejected' ? 'text-red-600' :
+                                      history.action === 'revision_requested' ? 'text-yellow-600' : 'text-slate-700'
+                                    }`}>
+                                      {history.action.replace('_', ' ')}
+                                    </span>
+                                    <span className="text-xs text-muted-foreground">by {history.actor}</span>
+                                    {history.role && <span className="text-[10px] bg-slate-100 px-1.5 py-0.5 rounded text-slate-500">{history.role}</span>}
+                                    <span className="text-xs text-muted-foreground ml-auto">{new Date(history.timestamp).toLocaleString()}</span>
+                                  </div>
+                                  {history.comments && (
+                                    <p className="text-sm text-slate-600 mt-1 bg-slate-50 p-2 rounded border border-slate-100">"{history.comments}"</p>
+                                  )}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <>
+                            {pow.reviewedBy && (
+                              <p className="text-xs text-muted-foreground mt-4">
+                                Reviewed by: {pow.reviewedBy}
+                              </p>
+                            )}
+                            {pow.reviewComments && (
+                              <p className="text-xs text-muted-foreground">
+                                Comments: {pow.reviewComments}
+                              </p>
+                            )}
+                          </>
                         )}
-                        {pow.reviewComments && (
-                          <p className="text-xs text-muted-foreground">
-                            Comments: {pow.reviewComments}
-                          </p>
+
+                        {pow.status === 'submitted' && canApprovePoW(user) && (
+                          <div className="mt-4 flex gap-3">
+                            <button
+                              onClick={() => handleStatusUpdate(pow._id, 'approved')}
+                              className="px-4 py-1.5 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-md transition-colors"
+                            >
+                              Approve & Complete Task
+                            </button>
+                            <button
+                              onClick={() => {
+                                const reason = prompt('Please provide a reason for requesting a revision:');
+                                if (reason) {
+                                  handleStatusUpdate(pow._id, 'revision_requested', reason);
+                                }
+                              }}
+                              className="px-4 py-1.5 border border-yellow-300 text-yellow-700 hover:bg-yellow-50 text-sm font-medium rounded-md transition-colors"
+                            >
+                              Request Revision
+                            </button>
+                            <button
+                              onClick={() => {
+                                const reason = prompt('Please provide a reason for rejection:');
+                                if (reason) {
+                                  handleStatusUpdate(pow._id, 'rejected', reason);
+                                }
+                              }}
+                              className="px-4 py-1.5 border border-red-200 text-red-600 hover:bg-red-50 text-sm font-medium rounded-md transition-colors"
+                            >
+                              Reject
+                            </button>
+                          </div>
                         )}
                       </div>
                     </div>

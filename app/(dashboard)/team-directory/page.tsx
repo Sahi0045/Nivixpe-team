@@ -20,6 +20,7 @@ export default function TeamDirectoryPage() {
   const [selectedMember, setSelectedMember] = useState<TeamMember | null>(null);
 
   const filteredMembers = TEAM_MEMBERS.filter((member) => {
+    if (member.status === 'inactive') return false;
     const matchesSearch =
       member.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       member.email.toLowerCase().includes(searchTerm.toLowerCase());
