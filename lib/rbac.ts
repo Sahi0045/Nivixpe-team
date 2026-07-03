@@ -246,41 +246,42 @@ export function canAssignTasksTo(user: User | null, targetMember: any): boolean 
 
 export function getAssignableMembers(user: User | null, allMembers: any[]): any[] {
   if (!user) return [];
+  const activeMembers = allMembers.filter(m => m.status !== 'inactive');
   
   // CEO can assign to anyone
-  if (user.isSuperAdmin) return allMembers;
+  if (user.isSuperAdmin) return activeMembers;
   
   // CTO can assign to anyone
-  if (user.role === 'CTO') return allMembers;
+  if (user.role === 'CTO') return activeMembers;
   
   // CSO can assign to Business team
   if (user.role === 'CSO') {
-    return allMembers.filter(m => m.team === 'Business');
+    return activeMembers.filter(m => m.team === 'Business');
   }
 
   // DCSO can assign to Business team
   if (user.role === 'DCSO') {
-    return allMembers.filter(m => m.team === 'Business');
+    return activeMembers.filter(m => m.team === 'Business');
   }
   
   // CMO can assign to Marketing and Design teams
   if (user.role === 'CMO') {
-    return allMembers.filter(m => m.team === 'Marketing' || m.team === 'Design');
+    return activeMembers.filter(m => m.team === 'Marketing' || m.team === 'Design');
   }
   
   // DCMO can assign to Marketing team
   if (user.role === 'DCMO') {
-    return allMembers.filter(m => m.team === 'Marketing');
+    return activeMembers.filter(m => m.team === 'Marketing');
   }
   
   // COO can assign to all teams
   if (user.role === 'COO') {
-    return allMembers;
+    return activeMembers;
   }
   
   // Legal can assign to Legal team
   if (user.role === 'Legal') {
-    return allMembers.filter(m => m.team === 'Legal');
+    return activeMembers.filter(m => m.team === 'Legal');
   }
   
   return [];
@@ -336,19 +337,21 @@ export function isManager(user: User | null): boolean {
 
 export function getTeamMembers(user: User | null, allMembers: any[]): any[] {
   if (!user) return [];
-  if (user.isSuperAdmin) return allMembers; // CEO sees all
-  if (user.role === 'CTO') return allMembers; // CTO sees all
-  if (user.role === 'COO') return allMembers; // COO sees all
+  const activeMembers = allMembers.filter(m => m.status !== 'inactive');
+  
+  if (user.isSuperAdmin) return activeMembers; // CEO sees all
+  if (user.role === 'CTO') return activeMembers; // CTO sees all
+  if (user.role === 'COO') return activeMembers; // COO sees all
   if (user.role === 'CSO') {
-    return allMembers.filter((m) => m.team === 'Business');
+    return activeMembers.filter((m) => m.team === 'Business');
   }
   if (user.role === 'Legal') {
-    return allMembers.filter((m) => m.team === 'Legal');
+    return activeMembers.filter((m) => m.team === 'Legal');
   }
   if (user.role === 'CMO') {
-    return allMembers.filter((m) => m.team === 'Marketing' || m.team === 'Design');
+    return activeMembers.filter((m) => m.team === 'Marketing' || m.team === 'Design');
   }
-  return allMembers;
+  return activeMembers;
 }
 
 export function getTeamForUser(user: User | null): string {
@@ -362,10 +365,18 @@ export function canAccessAdminPanel(user: User | null): boolean {
   return user.isSuperAdmin || user.role === 'CTO' || user.role === 'COO';
 }
 
-export function canDeleteAllocatedTask(user: User | null, task: { createdBy?: string }): boolean {
-  if (!user || !task.createdBy) return false;
-  const deleterRoles = ['CEO', 'CTO', 'COO', 'CMO', 'DCMO', 'DCSO'];
-  const hasRole = user.isSuperAdmin || deleterRoles.includes(user.role);
+export function canDeleteAllocatedTask(user: User | null, task: any): boolean {
+  if (!user) return false;
+  
+  // CEO, CTO, and COO can edit/delete any task
+  if (user.isSuperAdmin || user.role === 'CTO' || user.role === 'COO') {
+    return true;
+  }
+  
+  if (!task.createdBy) return false;
+
+  const deleterRoles = ['CMO', 'DCMO', 'DCSO'];
+  const hasRole = deleterRoles.includes(user.role);
   if (!hasRole) return false;
   return task.createdBy === user.name;
 }

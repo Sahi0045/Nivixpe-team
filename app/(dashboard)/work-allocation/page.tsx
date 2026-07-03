@@ -24,49 +24,50 @@ export default function WorkAllocationPage() {
   // RBAC: Filter team members based on user role
   const getVisibleMembers = () => {
     if (!user) return []
+    const activeMembers = TEAM_MEMBERS.filter(m => m.status !== 'inactive')
     
     // CEO sees everyone
     if (user.isSuperAdmin) {
-      return TEAM_MEMBERS
+      return activeMembers
     }
     
     // CTO sees everyone (full system access)
     if (user.role === 'CTO') {
-      return TEAM_MEMBERS
+      return activeMembers
     }
     
     // CSO sees Business team (including DCSO — mutual visibility)
     if (user.role === 'CSO') {
-      return TEAM_MEMBERS.filter(m => m.team === 'Business' || m.name === user.name)
+      return activeMembers.filter(m => m.team === 'Business' || m.name === user.name)
     }
     
     // DCSO sees Business team (including CSO — mutual visibility)
     if (user.role === 'DCSO') {
-      return TEAM_MEMBERS.filter(m => m.team === 'Business' || m.name === user.name)
+      return activeMembers.filter(m => m.team === 'Business' || m.name === user.name)
     }
     
     // CMO sees Marketing and Design teams
     if (user.role === 'CMO') {
-      return TEAM_MEMBERS.filter(m => m.team === 'Marketing' || m.team === 'Design' || m.name === user.name)
+      return activeMembers.filter(m => m.team === 'Marketing' || m.team === 'Design' || m.name === user.name)
     }
     
     // DCMO sees Marketing team
     if (user.role === 'DCMO') {
-      return TEAM_MEMBERS.filter(m => m.team === 'Marketing' || m.name === user.name)
+      return activeMembers.filter(m => m.team === 'Marketing' || m.name === user.name)
     }
     
     // COO sees all teams
     if (user.role === 'COO') {
-      return TEAM_MEMBERS
+      return activeMembers
     }
 
     // Legal head sees Legal team
     if (user.role === 'Legal') {
-      return TEAM_MEMBERS.filter(m => m.team === 'Legal' || m.name === user.name)
+      return activeMembers.filter(m => m.team === 'Legal' || m.name === user.name)
     }
     
     // Everyone else sees only themselves
-    return TEAM_MEMBERS.filter(m => m.name === user.name)
+    return activeMembers.filter(m => m.name === user.name)
   }
   
   const visibleMembers = getVisibleMembers()
@@ -141,13 +142,13 @@ export default function WorkAllocationPage() {
                   </span>
                 </div>
                 <div className="flex justify-between items-center text-sm">
-                  <span className="text-purple-900">Marketing Team (Abhiram)</span>
+                  <span className="text-purple-900">Marketing Team</span>
                   <span className="font-semibold text-purple-700">
                     {TEAM_MEMBERS.filter((m) => m.team === 'Marketing').length} members
                   </span>
                 </div>
                 <div className="flex justify-between items-center text-sm">
-                  <span className="text-purple-900">Design Team (Shubham)</span>
+                  <span className="text-purple-900">Design Team (Bhavika)</span>
                   <span className="font-semibold text-purple-700">
                     {TEAM_MEMBERS.filter((m) => m.team === 'Design').length} members
                   </span>
