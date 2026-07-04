@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/app/providers';
 import { Button } from '@/components/ui/button';
@@ -102,9 +103,20 @@ export function Sidebar() {
         )}
       >
         {/* Logo - Desktop Only */}
-        <div className="hidden lg:block p-6 border-b border-sidebar-border">
-          <h1 className="text-xl font-bold text-sidebar-foreground">Nivixpe</h1>
-          <p className="text-xs text-sidebar-foreground/60 mt-1">{user.role}</p>
+        <div className="hidden lg:block p-4 border-b border-sidebar-border">
+          <div className="flex items-center gap-3">
+            <Image
+              src="/nivixpe-logo.png"
+              alt="Nivixpe Logo"
+              width={36}
+              height={36}
+              className="object-contain"
+            />
+            <div>
+              <h1 className="text-lg font-bold text-sidebar-foreground">Nivixpe</h1>
+              <p className="text-xs text-sidebar-foreground/60">{user.role}</p>
+            </div>
+          </div>
         </div>
 
         {/* Navigation */}

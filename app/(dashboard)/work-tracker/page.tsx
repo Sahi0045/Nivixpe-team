@@ -94,8 +94,9 @@ function WorkTrackerContent() {
   const myAssignedTasks =
     useQuery(api.workTasks.getByAssignee, user ? { assignee: user.name } : 'skip') || [];
   
-  const visibleTasks = getVisibleTasks(user, allTasks, TEAM_MEMBERS);
-  const assignableMembers = getAssignableMembers(user, TEAM_MEMBERS);
+  const activeTeamMembers = TEAM_MEMBERS.filter(m => m.status !== 'inactive');
+  const visibleTasks = getVisibleTasks(user, allTasks, activeTeamMembers);
+  const assignableMembers = getAssignableMembers(user, activeTeamMembers);
   
   const allAssignees = useMemo(() => {
     const fromTasks = new Set(visibleTasks.map(t => t.assignee));
@@ -109,7 +110,7 @@ function WorkTrackerContent() {
     let result = allAssignees;
     if (filterTeam !== 'all') {
       result = result.filter(name => {
-        const member = TEAM_MEMBERS.find(m => m.name === name);
+        const member = activeTeamMembers.find(m => m.name === name);
         return member?.team === filterTeam || member?.additionalTeams?.includes(filterTeam);
       });
     }
@@ -453,7 +454,7 @@ function WorkTrackerContent() {
             onPersonChange={setFilterPerson}
             selectedTeam={filterTeam}
             selectedPerson={filterPerson}
-            visibleMembers={TEAM_MEMBERS.filter(m => allAssignees.includes(m.name))}
+            visibleMembers={activeTeamMembers.filter(m => allAssignees.includes(m.name))}
             extraFilters={
               <div className="flex items-center gap-4 ml-auto">
                 <div className="flex items-center gap-2 bg-white px-4 py-2 border rounded-xl shadow-sm cursor-pointer" onClick={() => setShowCompletedTasks(!showCompletedTasks)}>
@@ -570,7 +571,7 @@ function WorkTrackerContent() {
                       onChange={(e) => setTaskForm({ ...taskForm, coordinationWith: e.target.value })}
                     >
                       <option value="">None</option>
-                      {TEAM_MEMBERS.filter(m => m.name !== selectedAssignee).map(member => (
+                      {activeTeamMembers.filter(m => m.name !== selectedAssignee).map(member => (
                         <option key={member.id} value={member.name}>
                           {member.name} ({member.role})
                         </option>

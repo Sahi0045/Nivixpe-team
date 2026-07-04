@@ -216,4 +216,14 @@ export default defineSchema({
     .index("by_teamFolder", ["teamFolder"])
     .index("by_uploader", ["uploadedByEmail"])
     .index("by_teamFolder_and_uploader", ["teamFolder", "uploadedByEmail"]),
+
+  // Drive Access Grants — CEO/COO/CTO can grant cross-team folder access
+  driveAccessGrants: defineTable({
+    grantedTo: v.string(),        // member name
+    grantedToEmail: v.string(),   // member email (primary key for lookup)
+    grantedBy: v.string(),        // admin name who granted access
+    folders: v.array(v.string()), // e.g. ["Business", "Legal"]
+    grantedAt: v.string(),
+  })
+    .index("by_email", ["grantedToEmail"]),
 });

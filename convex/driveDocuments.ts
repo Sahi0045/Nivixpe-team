@@ -76,9 +76,14 @@ export const getByFolder = query({
     userRole: v.string(),
     userTeam: v.optional(v.string()),
     isSuperAdmin: v.optional(v.boolean()),
+    grantedFolders: v.optional(v.array(v.string())), // folders granted via admin access
   },
   handler: async (ctx, args) => {
-    if (!canAccessFolder(args.teamFolder, args.userRole, args.userTeam, args.isSuperAdmin)) {
+    const hasGrantedAccess = args.grantedFolders?.includes(args.teamFolder);
+    if (
+      !hasGrantedAccess &&
+      !canAccessFolder(args.teamFolder, args.userRole, args.userTeam, args.isSuperAdmin)
+    ) {
       return [];
     }
 

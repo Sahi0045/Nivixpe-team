@@ -12,6 +12,7 @@ import type * as attendanceRecords from "../attendanceRecords.js";
 import type * as clearLeaveRequests from "../clearLeaveRequests.js";
 import type * as clearMeetings from "../clearMeetings.js";
 import type * as crons from "../crons.js";
+import type * as driveAccessGrants from "../driveAccessGrants.js";
 import type * as driveDocuments from "../driveDocuments.js";
 import type * as files from "../files.js";
 import type * as googleMeet from "../googleMeet.js";
@@ -36,6 +37,7 @@ declare const fullApi: ApiFromModules<{
   clearLeaveRequests: typeof clearLeaveRequests;
   clearMeetings: typeof clearMeetings;
   crons: typeof crons;
+  driveAccessGrants: typeof driveAccessGrants;
   driveDocuments: typeof driveDocuments;
   files: typeof files;
   googleMeet: typeof googleMeet;
