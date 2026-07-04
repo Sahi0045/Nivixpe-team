@@ -62,8 +62,21 @@ export default function DrivePage() {
   const [isUploading, setIsUploading] = useState(false);
   const [selectedMember, setSelectedMember] = useState<string>('all');
 
-  const accessibleFolders = user ? getAccessibleDriveFolders(user) : [];
+  const accessibleFoldersBase = user ? getAccessibleDriveFolders(user) : [];
   const canSeeAll = user ? canAccessAllDriveFolders(user) : false;
+
+  // Query cross-team drive access grants for this user
+  const driveGrant = useQuery(
+    api.driveAccessGrants.getByEmail,
+    user ? { email: user.email } : 'skip'
+  );
+
+  // Merge granted folders with base accessible folders (deduplicated)
+  const accessibleFolders: DriveFolder[] = useMemo(() => {
+    const grantedFolders = (driveGrant?.folders ?? []) as DriveFolder[];
+    const combined = new Set([...accessibleFoldersBase, ...grantedFolders]);
+    return Array.from(combined);
+  }, [accessibleFoldersBase, driveGrant]);
 
   const documents =
     useQuery(
@@ -74,6 +87,7 @@ export default function DrivePage() {
             userRole: user.role,
             userTeam: user.team,
             isSuperAdmin: user.isSuperAdmin,
+            grantedFolders: driveGrant?.folders ?? [],
           }
         : 'skip',
     ) || [];

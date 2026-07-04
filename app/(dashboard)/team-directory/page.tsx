@@ -6,11 +6,13 @@ import { Header } from '@/components/header';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { TEAM_MEMBERS, TeamMember } from '@/lib/mock-data';
-import { Search, User as UserIcon, Calendar, Clock, X } from 'lucide-react';
-import { useQuery } from 'convex/react';
+import { Search, User as UserIcon, Calendar, Clock, X, FolderOpen, Shield, CheckSquare, Square } from 'lucide-react';
+import { useQuery, useMutation } from 'convex/react';
 import { api } from '@/convex/_generated/api';
 import { format } from 'date-fns';
 import { PageFilterBar } from '@/components/page-filter-bar';
+import { DriveFolder, DRIVE_FOLDERS } from '@/lib/drive-access';
+import { toast } from 'sonner';
 
 export default function TeamDirectoryPage() {
   const { user } = useAuth();
@@ -136,11 +138,75 @@ export default function TeamDirectoryPage() {
 
 function AttendanceModal({ member, onClose, currentUser }: { member: TeamMember, onClose: () => void, currentUser: any }) {
   const attendanceRecords = useQuery(api.attendanceRecords.getByEmail, { email: member.email }) || [];
-  
+  const existingGrant = useQuery(api.driveAccessGrants.getByEmail, { email: member.email });
+  const upsertGrant = useMutation(api.driveAccessGrants.upsert);
+  const removeGrant = useMutation(api.driveAccessGrants.remove);
+
+  // Local state for selected folders in the grant UI
+  const [selectedFolders, setSelectedFolders] = useState<string[]>(
+    existingGrant?.folders ?? []
+  );
+  const [savingGrant, setSavingGrant] = useState(false);
+
+  // Sync selectedFolders when existingGrant loads
+  const loadedFolders = existingGrant?.folders;
+  if (loadedFolders !== undefined && JSON.stringify(loadedFolders) !== JSON.stringify(selectedFolders) && !savingGrant) {
+    setSelectedFolders(loadedFolders);
+  }
+
   const canView = currentUser?.email === member.email || 
                   currentUser?.isSuperAdmin || 
                   currentUser?.role === 'CTO' || 
                   currentUser?.role === 'COO';
+
+  const canGrantAccess = currentUser?.isSuperAdmin || 
+                         currentUser?.role === 'CTO' || 
+                         currentUser?.role === 'COO';
+
+  // Don't show grant section if member is from same full-access role
+  const memberAlreadyHasFullAccess = ['CEO', 'CTO', 'COO'].includes(member.role);
+
+  const toggleFolder = (folderId: string) => {
+    setSelectedFolders(prev =>
+      prev.includes(folderId) ? prev.filter(f => f !== folderId) : [...prev, folderId]
+    );
+  };
+
+  const handleSaveGrant = async () => {
+    if (!currentUser) return;
+    setSavingGrant(true);
+    try {
+      if (selectedFolders.length === 0) {
+        await removeGrant({ grantedToEmail: member.email });
+        toast.success(`Drive access revoked for ${member.name}`);
+      } else {
+        await upsertGrant({
+          grantedTo: member.name,
+          grantedToEmail: member.email,
+          grantedBy: currentUser.name,
+          folders: selectedFolders,
+        });
+        toast.success(`Drive access updated for ${member.name}`);
+      }
+    } catch (e) {
+      toast.error('Failed to update drive access.');
+    } finally {
+      setSavingGrant(false);
+    }
+  };
+
+  const handleRevokeAll = async () => {
+    setSavingGrant(true);
+    try {
+      await removeGrant({ grantedToEmail: member.email });
+      setSelectedFolders([]);
+      toast.success(`All drive access revoked for ${member.name}`);
+    } catch (e) {
+      toast.error('Failed to revoke drive access.');
+    } finally {
+      setSavingGrant(false);
+    }
+  };
 
   return (
     <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
@@ -175,6 +241,77 @@ function AttendanceModal({ member, onClose, currentUser }: { member: TeamMember,
               </div>
             )}
           </div>
+
+          {/* Drive Access Grant Section — only for CEO, COO, CTO */}
+          {canGrantAccess && !memberAlreadyHasFullAccess && (
+            <div className="border rounded-xl overflow-hidden">
+              <div className="bg-gradient-to-r from-teal-50 to-emerald-50 px-5 py-4 border-b flex items-center gap-2">
+                <FolderOpen className="h-5 w-5 text-teal-600" />
+                <h3 className="font-bold text-teal-900">Drive Access</h3>
+                {existingGrant && existingGrant.folders.length > 0 && (
+                  <span className="ml-auto text-xs bg-teal-100 text-teal-700 px-2 py-1 rounded-full font-semibold">
+                    {existingGrant.folders.length} folder{existingGrant.folders.length > 1 ? 's' : ''} granted
+                  </span>
+                )}
+              </div>
+              <div className="p-5 space-y-4">
+                <p className="text-sm text-slate-500">Select which team drive folders <span className="font-semibold text-slate-700">{member.name}</span> should have access to. They will see all existing and future documents in selected folders.</p>
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                  {DRIVE_FOLDERS.map(folder => {
+                    // Skip the member's own default folder (they already have it)
+                    const memberDefaultFolder = member.team === 'Technical' ? 'Technical' : member.team === 'Marketing' ? 'Marketing' : member.team === 'Business' ? 'Business' : member.team === 'Legal' ? 'Legal' : 'Other';
+                    const isDefault = folder.id === memberDefaultFolder;
+                    const isSelected = selectedFolders.includes(folder.id);
+                    return (
+                      <button
+                        key={folder.id}
+                        onClick={() => !isDefault && toggleFolder(folder.id)}
+                        disabled={isDefault}
+                        className={`flex items-center gap-2 px-3 py-2.5 rounded-lg border text-sm font-medium transition-all ${
+                          isDefault
+                            ? 'bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed'
+                            : isSelected
+                            ? 'bg-teal-50 border-teal-400 text-teal-800 shadow-sm'
+                            : 'bg-white border-slate-200 text-slate-700 hover:border-teal-300 hover:bg-teal-50/50'
+                        }`}
+                      >
+                        {isDefault ? (
+                          <Shield className="h-4 w-4 text-slate-400" />
+                        ) : isSelected ? (
+                          <CheckSquare className="h-4 w-4 text-teal-600" />
+                        ) : (
+                          <Square className="h-4 w-4 text-slate-400" />
+                        )}
+                        {folder.label}
+                        {isDefault && <span className="text-[10px] ml-auto font-normal text-slate-400">default</span>}
+                      </button>
+                    );
+                  })}
+                </div>
+                {existingGrant && existingGrant.grantedBy && (
+                  <p className="text-xs text-slate-400">Last updated by <span className="font-medium">{existingGrant.grantedBy}</span></p>
+                )}
+                <div className="flex gap-2 pt-1">
+                  <button
+                    onClick={handleSaveGrant}
+                    disabled={savingGrant}
+                    className="flex-1 bg-teal-600 hover:bg-teal-700 text-white px-4 py-2.5 rounded-lg text-sm font-semibold transition-colors disabled:opacity-50"
+                  >
+                    {savingGrant ? 'Saving...' : 'Save Access'}
+                  </button>
+                  {existingGrant && existingGrant.folders.length > 0 && (
+                    <button
+                      onClick={handleRevokeAll}
+                      disabled={savingGrant}
+                      className="px-4 py-2.5 rounded-lg text-sm font-semibold border border-red-200 text-red-600 hover:bg-red-50 transition-colors disabled:opacity-50"
+                    >
+                      Revoke All
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
 
           <div>
             <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
