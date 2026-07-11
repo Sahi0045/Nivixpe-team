@@ -346,7 +346,7 @@ export default function AdminPage() {
         </div>
 
         <AdminIndividualTrackers
-          members={allMembers}
+          members={allMembers.filter((m) => m.name !== 'Abhiram')}
           tasks={allTasks}
           attendance={allAttendance}
           leaves={allLeaves}
