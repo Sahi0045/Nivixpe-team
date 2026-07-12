@@ -1,5 +1,6 @@
 import { query, mutation } from './_generated/server';
 import { v } from 'convex/values';
+import { createNotification } from './notifications';
 
 // Get the drive access grant for a specific member by email
 export const getByEmail = query({
@@ -26,6 +27,7 @@ export const upsert = mutation({
       .withIndex('by_email', (q) => q.eq('grantedToEmail', grantedToEmail))
       .first();
 
+    let resultId;
     if (existing) {
       await ctx.db.patch(existing._id, {
         grantedTo,
@@ -33,9 +35,9 @@ export const upsert = mutation({
         folders,
         grantedAt: new Date().toISOString(),
       });
-      return existing._id;
+      resultId = existing._id;
     } else {
-      return await ctx.db.insert('driveAccessGrants', {
+      resultId = await ctx.db.insert('driveAccessGrants', {
         grantedTo,
         grantedToEmail,
         grantedBy,
@@ -43,6 +45,18 @@ export const upsert = mutation({
         grantedAt: new Date().toISOString(),
       });
     }
+
+    // Send notification and email
+    const foldersList = folders.join(', ');
+    await createNotification(ctx, {
+      userId: grantedToEmail,
+      title: "📁 Drive Access Granted",
+      message: `You have been granted access to the following team folders: ${foldersList} by ${grantedBy}.`,
+      type: "work",
+      link: "/drive",
+    });
+
+    return resultId;
   },
 });
 

@@ -1,5 +1,6 @@
 import { query, mutation } from "./_generated/server";
 import { v } from "convex/values";
+import { createNotification } from "./notifications";
 
 // Get all team members
 export const getAll = query({
@@ -47,7 +48,18 @@ export const create = mutation({
     joinDate: v.string(),
   },
   handler: async (ctx, args) => {
-    return await ctx.db.insert("teamMembers", args as any);
+    const memberId = await ctx.db.insert("teamMembers", args as any);
+
+    // Send welcome email/notification
+    await createNotification(ctx, {
+      userId: args.email,
+      title: "Welcome to Nivixpe Team Portal",
+      message: `Hello ${args.name}, you have been added to the Nivixpe Team Portal as a ${args.role} in the ${args.department} department.`,
+      type: "work",
+      link: "/dashboard",
+    });
+
+    return memberId;
   },
 });
 

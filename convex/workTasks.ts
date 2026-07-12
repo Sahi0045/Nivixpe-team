@@ -1,5 +1,6 @@
 import { query, mutation } from "./_generated/server";
 import { v } from "convex/values";
+import { createNotification } from "./notifications";
 
 // Get all work tasks
 export const getAll = query({
@@ -59,13 +60,11 @@ export const create = mutation({
       .first();
     
     if (assignee) {
-      await ctx.db.insert("notifications", {
+      await createNotification(ctx, {
         userId: assignee.email,
         title: "New Task Assigned",
         message: `You have been assigned a new task: ${args.title}`,
         type: "work",
-        isRead: false,
-        createdAt: new Date().toISOString(),
         link: "/work-tracker",
       });
     }
@@ -95,13 +94,11 @@ export const update = mutation({
     if (oldTask && updates.status && oldTask.status !== updates.status) {
       // Notify the creator if completed
       if (updates.status === "completed") {
-        await ctx.db.insert("notifications", {
+        await createNotification(ctx, {
           userId: oldTask.createdBy, // Email of the creator
           title: "Task Completed",
           message: `${oldTask.assignee} has completed the task: ${oldTask.title}`,
           type: "work",
-          isRead: false,
-          createdAt: new Date().toISOString(),
           link: "/work-tracker",
         });
       }

@@ -1,5 +1,6 @@
 import { query, mutation } from "./_generated/server";
 import { v } from "convex/values";
+import { createNotification } from "./notifications";
 // Trigger sync
 
 // Get all leave requests
@@ -56,13 +57,11 @@ export const create = mutation({
       .first();
     
     if (ceo) {
-      await ctx.db.insert("notifications", {
+      await createNotification(ctx, {
         userId: ceo.email,
         title: "New Leave Request",
         message: `${args.employeeName} has requested ${args.type} leave from ${args.startDate} to ${args.endDate}.`,
         type: "leave",
-        isRead: false,
-        createdAt: new Date().toISOString(),
         link: "/leave-management",
       });
     }
@@ -89,13 +88,11 @@ export const updateStatus = mutation({
     await ctx.db.patch(id, updates as any);
 
     // Send notification to employee
-    await ctx.db.insert("notifications", {
+    await createNotification(ctx, {
       userId: leave.employeeEmail,
       title: `Leave Request ${updates.status.charAt(0).toUpperCase() + updates.status.slice(1)}`,
       message: `Your leave request from ${leave.startDate} to ${leave.endDate} has been ${updates.status}.`,
       type: "leave",
-      isRead: false,
-      createdAt: new Date().toISOString(),
       link: "/leave-management",
     });
     

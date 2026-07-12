@@ -1,5 +1,6 @@
 import { query, mutation } from "./_generated/server";
 import { v } from "convex/values";
+import { createNotification } from "./notifications";
 
 // Get all meetings
 export const getAll = query({
@@ -65,13 +66,11 @@ export const create = mutation({
         .first();
       
       if (member) {
-        await ctx.db.insert("notifications", {
+        await createNotification(ctx, {
           userId: member.email,
           title: "New Meeting Scheduled",
           message: `You have been invited to: ${args.title} on ${args.date} at ${args.time}.${meetInfo}`,
           type: "meeting",
-          isRead: false,
-          createdAt: new Date().toISOString(),
           link: "/meetings",
         });
       }

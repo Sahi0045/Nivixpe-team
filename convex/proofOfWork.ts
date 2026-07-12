@@ -1,5 +1,6 @@
 import { query, mutation } from "./_generated/server";
 import { v } from "convex/values";
+import { createNotification } from "./notifications";
 
 // Get all proof of work submissions
 export const getAll = query({
@@ -83,13 +84,11 @@ export const create = mutation({
       .first();
     
     if (ceo) {
-      await ctx.db.insert("notifications", {
+      await createNotification(ctx, {
         userId: ceo.email,
         title: "New Proof of Work Submitted",
         message: `${args.submittedBy} has submitted proof for task: ${args.taskTitle}`,
         type: "pow",
-        isRead: false,
-        createdAt: new Date().toISOString(),
         link: "/proof-of-work",
       });
     }
@@ -125,13 +124,11 @@ export const updateStatus = mutation({
 
     await ctx.db.patch(id, { ...updates, revisionHistory } as any);
       // Notify the user of the status change
-      await ctx.db.insert("notifications", {
+      await createNotification(ctx, {
         userId: pow.submittedByEmail,
         title: `Proof of Work ${updates.status.charAt(0).toUpperCase() + updates.status.slice(1)}`,
         message: `Your proof of work for "${pow.taskTitle}" has been ${updates.status}.`,
         type: "pow",
-        isRead: false,
-        createdAt: new Date().toISOString(),
         link: "/proof-of-work",
       });
 

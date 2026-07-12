@@ -1,5 +1,6 @@
 import { query, mutation } from "./_generated/server";
 import { v } from "convex/values";
+import { createNotification } from "./notifications";
 
 // Get all attendance records (limited)
 export const getAll = query({
@@ -74,13 +75,11 @@ export const create = mutation({
         });
 
         // Notify on resume
-        await ctx.db.insert("notifications", {
+        await createNotification(ctx, {
           userId: args.email,
           title: "Attendance Resumed",
           message: `You resumed your work session at ${loginTime}. Your work hours tracking has resumed.`,
           type: "attendance",
-          isRead: false,
-          createdAt: new Date().toISOString(),
           link: "/attendance",
         });
 
@@ -100,13 +99,11 @@ export const create = mutation({
     } as any);
     
     // Notify on login
-    await ctx.db.insert("notifications", {
+    await createNotification(ctx, {
       userId: args.email,
       title: "Attendance Marked",
       message: `You logged in at ${loginTime}. Remember to work minimum 4 hours today.`,
       type: "attendance",
-      isRead: false,
-      createdAt: new Date().toISOString(),
       link: "/attendance",
     });
 
@@ -166,23 +163,19 @@ export const update = mutation({
       const workTimeStr = `${hours}h ${minutes}m`;
       
       if (targetWorkHours < 240) { // Less than 4 hours (240 minutes)
-        await ctx.db.insert("notifications", {
+        await createNotification(ctx, {
           userId: attendance.email,
           title: "⚠️ Insufficient Work Hours",
           message: `You paused/logged out at ${updates.logoutTime}. Total work time today: ${workTimeStr}. Minimum required: 4 hours.`,
           type: "attendance",
-          isRead: false,
-          createdAt: new Date().toISOString(),
           link: "/attendance-history",
         });
       } else {
-        await ctx.db.insert("notifications", {
+        await createNotification(ctx, {
           userId: attendance.email,
           title: "Logout Recorded",
           message: `You paused/logged out at ${updates.logoutTime}. Total work time today: ${workTimeStr}. Great job!`,
           type: "attendance",
-          isRead: false,
-          createdAt: new Date().toISOString(),
           link: "/attendance-history",
         });
       }
@@ -226,13 +219,11 @@ export const sendDailyReminders = mutation({
     
     for (const member of allMembers) {
       if (!loggedInEmails.has(member.email)) {
-        await ctx.db.insert("notifications", {
+        await createNotification(ctx, {
           userId: member.email,
           title: "Attendance Reminder",
           message: "Don't forget to mark your attendance for today!",
           type: "attendance",
-          isRead: false,
-          createdAt: new Date().toISOString(),
           link: "/attendance",
         });
       }
