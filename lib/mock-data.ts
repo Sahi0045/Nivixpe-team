@@ -227,6 +227,18 @@ export const TEAM_MEMBERS: TeamMember[] = [
     lastLogin: '2025-05-02 09:35',
     joinDate: '2025-05-01',
   },
+  {
+    id: '15',
+    name: 'Adya Paliwal',
+    email: 'productmanager@nivix.com',
+    role: 'Product Manager',
+    department: 'Product',
+    team: 'Business',
+    reportsTo: 'Sahith',
+    status: 'active',
+    lastLogin: '2025-07-25 09:00',
+    joinDate: '2025-07-25',
+  },
 ];
 
 // Daily work tasks
