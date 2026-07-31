@@ -135,7 +135,18 @@ export const ROLE_PERMISSIONS: Record<string, string[]> = {
     'notifications',
     'settings',
   ],
-  'Designer': [
+  'Product Manager': [
+    'dashboard',
+    'team-directory',
+    'work-tracker',
+    'work-allocation',
+    'attendance',
+    'attendance-history',
+    'leave-management',
+    'meetings',
+    'notifications',
+    'settings',
+  ],
     'dashboard',
     'team-directory',
     'work-tracker',
@@ -254,6 +265,12 @@ export function getAssignableMembers(user: User | null, allMembers: any[]): any[
   // CTO can assign to anyone
   if (user.role === 'CTO') return activeMembers;
   
+  // Product Manager can assign to all teams
+  if (user.role === 'Product Manager') return true;
+
+  // Product Manager can assign to all teams
+  if (user.role === 'Product Manager') return allMembers;
+
   // CSO can assign to Business team
   if (user.role === 'CSO') {
     return activeMembers.filter(m => m.team === 'Business');
@@ -289,8 +306,8 @@ export function getAssignableMembers(user: User | null, allMembers: any[]): any[
 
 export function canViewAllTasks(user: User | null): boolean {
   if (!user) return false;
-  // CEO, CTO, and COO can view all tasks
-  return user.isSuperAdmin || user.role === 'CTO' || user.role === 'COO';
+  // CEO, CTO, COO and Product Manager can view all tasks
+  return user.isSuperAdmin || user.role === 'CTO' || user.role === 'COO' || user.role === 'Product Manager';
 }
 
 export function canViewTeamTasks(user: User | null, taskAssignee: string, allMembers: any[]): boolean {
@@ -306,6 +323,9 @@ export function canViewTeamTasks(user: User | null, taskAssignee: string, allMem
   const assigneeMember = allMembers.find(m => m.name === taskAssignee);
   if (!assigneeMember) return false;
   
+  // Product Manager can view all tasks
+  if (user.role === 'Product Manager') return true;
+
   // Team heads can view their team's tasks
   if (user.role === 'CSO' && assigneeMember.team === 'Business') return true;
   if (user.role === 'DCSO' && assigneeMember.team === 'Business') return true;
@@ -342,6 +362,7 @@ export function getTeamMembers(user: User | null, allMembers: any[]): any[] {
   if (user.isSuperAdmin) return activeMembers; // CEO sees all
   if (user.role === 'CTO') return activeMembers; // CTO sees all
   if (user.role === 'COO') return activeMembers; // COO sees all
+  if (user.role === 'Product Manager') return activeMembers; // PM sees all
   if (user.role === 'CSO') {
     return activeMembers.filter((m) => m.team === 'Business');
   }

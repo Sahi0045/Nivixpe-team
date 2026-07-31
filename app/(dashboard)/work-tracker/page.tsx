@@ -94,8 +94,11 @@ function WorkTrackerContent() {
   const myAssignedTasks =
     useQuery(api.workTasks.getByAssignee, user ? { assignee: user.name } : 'skip') || [];
   
-  const activeTeamMembers = TEAM_MEMBERS.filter(m => m.status !== 'inactive');
-  const visibleTasks = getVisibleTasks(user, allTasks, activeTeamMembers);
+  const activeTeamMembers = TEAM_MEMBERS.filter(m => m.status !== 'inactive' && !['Abhiram', 'Rudra Sahu'].includes(m.name));
+  const hiddenAssignees = ['Abhiram', 'Rudra Sahu'];
+  const visibleTasks = getVisibleTasks(user, allTasks, activeTeamMembers).filter(
+    t => !hiddenAssignees.includes(t.assignee)
+  );
   const assignableMembers = getAssignableMembers(user, activeTeamMembers);
   
   const allAssignees = useMemo(() => {

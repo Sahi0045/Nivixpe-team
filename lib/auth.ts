@@ -6,7 +6,7 @@ export interface User {
   name: string;
   role: UserRole;
   department: string;
-  team?: 'Business' | 'Legal' | 'Technical' | 'Marketing' | 'Design';
+  team?: 'Business' | 'Legal' | 'Technical' | 'Marketing' | 'Design' | 'HR';
   isSuperAdmin?: boolean;
   accessLevel?: 'admin' | 'manager' | 'employee';
   avatar?: string;
@@ -128,19 +128,6 @@ export const MOCK_USERS: Record<string, { password: string; user: User }> = {
       joinDate: '2021-06-15',
     },
   },
-  'designer2@nivixpe.com': {
-    password: 'design123',
-    user: {
-      id: '9',
-      email: 'designer2@nivixpe.com',
-      name: 'Rudra Sahu',
-      role: 'Designer',
-      department: 'Design',
-      team: 'Design',
-      accessLevel: 'employee',
-      joinDate: '2021-07-01',
-    },
-  },
   'legal1@nivixpe.com': {
     password: 'legal1123',
     user: {
@@ -167,17 +154,17 @@ export const MOCK_USERS: Record<string, { password: string; user: User }> = {
       joinDate: '2025-05-01',
     },
   },
-  'developer2@nivixpe.com': {
-    password: 'dev123',
+  'pm@nivixpe.com': {
+    password: 'pm123',
     user: {
-      id: '12',
-      email: 'developer2@nivixpe.com',
-      name: 'Huy Ho',
-      role: 'Developer 2',
-      department: 'Technology',
-      team: 'Technical',
-      accessLevel: 'employee',
-      joinDate: '2025-05-01',
+      id: '14',
+      email: 'pm@nivixpe.com',
+      name: 'Aryan Kulshreshtra',
+      role: 'Product Manager',
+      department: 'HR',
+      team: 'HR',
+      accessLevel: 'manager',
+      joinDate: '2025-05-02',
     },
   },
   'legal2@nivixpe.com': {

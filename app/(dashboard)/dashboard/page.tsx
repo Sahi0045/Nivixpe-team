@@ -26,12 +26,15 @@ export default function DashboardPage() {
   const completedTasks = allTasks.filter((t) => t.status === 'completed').length;
   const completionRate = allTasks.length > 0 ? Math.round((completedTasks / allTasks.length) * 100) : 0;
   const pendingReviews = allProofOfWork.filter((pow) => pow.status === 'submitted').length;
-  const activeEmployees = TEAM_MEMBERS.filter(m => m.status === 'active').length;
+  const activeEmployees = TEAM_MEMBERS.filter(m => m.status === 'active' && !['Abhiram', 'Rudra Sahu'].includes(m.name)).length;
+
+  // Names to hide everywhere except Proof of Work and Team Drive
+  const hiddenMembers = ['Abhiram', 'Rudra Sahu'];
 
   // Build Activity Feed from Tasks, ProofOfWork, and Attendance
   const activities: any[] = [];
   
-  allTasks.slice(0, 5).forEach(task => {
+  allTasks.filter(t => !hiddenMembers.includes(t.assignee)).slice(0, 5).forEach(task => {
     activities.push({
       id: `task-${task._id}`,
       user: task.assignee,

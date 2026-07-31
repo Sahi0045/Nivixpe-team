@@ -32,8 +32,11 @@ export default function LeaveManagementPage() {
   // 4 heads can approve/reject: CEO (Sahith), CTO (Shubham), CSO (Swaraag), COO (Siddhartha) — CMO account disabled
   const canApproveLeave = user?.isSuperAdmin || user?.role === 'CTO' || user?.role === 'CSO' || user?.role === 'COO';
   
+  const hiddenMembers = ['Abhiram', 'Rudra Sahu'];
+
   // Show all requests for CEO/CTO, only own requests for others
-  const displayRequests = canApproveLeave ? allLeaveRequests : myLeaveRequests;
+  const displayRequests = (canApproveLeave ? allLeaveRequests : myLeaveRequests)
+    .filter(lr => !hiddenMembers.includes(lr.employeeName));
 
   const [filterPerson, setFilterPerson] = useState('all');
   const [filterStatus, setFilterStatus] = useState('all');

@@ -4,7 +4,7 @@ export interface TeamMember {
   email: string;
   role: string;
   department: string;
-  team?: 'Business' | 'Legal' | 'Technical' | 'Marketing' | 'Design';
+  team?: 'Business' | 'Legal' | 'Technical' | 'Marketing' | 'Design' | 'HR';
   additionalTeams?: string[];
   reportsTo?: string;
   status: 'active' | 'onLeave' | 'inactive';
@@ -156,18 +156,6 @@ export const TEAM_MEMBERS: TeamMember[] = [
     joinDate: '2021-06-15',
   },
   {
-    id: '9',
-    name: 'Rudra Sahu',
-    email: 'designer2@nivixpe.com',
-    role: 'Designer',
-    department: 'Design',
-    team: 'Design',
-    reportsTo: 'Shubham',
-    status: 'active',
-    lastLogin: '2025-05-02 09:20',
-    joinDate: '2021-07-01',
-  },
-  {
     id: '10',
     name: 'Kashish',
     email: 'legal1@nivixpe.com',
@@ -217,15 +205,15 @@ export const TEAM_MEMBERS: TeamMember[] = [
   },
   {
     id: '14',
-    name: 'Nithin Sureddy',
-    email: 'developer3@nivix.com',
-    role: 'Developer 3',
-    department: 'Technology',
-    team: 'Technical',
-    reportsTo: 'Shubham',
+    name: 'Aryan Kulshreshtra',
+    email: 'pm@nivixpe.com',
+    role: 'Product Manager',
+    department: 'HR',
+    team: 'HR',
+    reportsTo: 'Sahith, Shubham',
     status: 'active',
-    lastLogin: '2025-05-02 09:35',
-    joinDate: '2025-05-01',
+    lastLogin: '2025-05-02 09:40',
+    joinDate: '2025-05-02',
   },
   {
     id: '15',
@@ -718,67 +706,6 @@ export const WORK_TASKS: WorkTask[] = [
     comments: 'Continuous regulatory monitoring',
   },
 
-  // Marketing Team Tasks (Abhiram - CMO)
-  {
-    id: 'cmo1',
-    title: 'Brand Strategy Development',
-    assignee: 'Abhiram',
-    assigneeRole: 'CMO',
-    status: 'completed',
-    dueDate: '2025-04-20',
-    completedDate: '2025-04-20',
-    priority: 'high',
-    owner: 'Abhiram',
-    comments: 'Brand positioning finalized',
-  },
-  {
-    id: 'cmo2',
-    title: 'Marketing Campaign Planning',
-    assignee: 'Abhiram',
-    assigneeRole: 'CMO',
-    status: 'ongoing',
-    dueDate: '2025-05-15',
-    priority: 'high',
-    owner: 'Abhiram',
-    comments: 'Q2 campaign strategy',
-  },
-  {
-    id: 'cmo3',
-    title: 'Digital Marketing Strategy',
-    assignee: 'Abhiram',
-    assigneeRole: 'CMO',
-    status: 'ongoing',
-    dueDate: '2025-05-20',
-    priority: 'high',
-    owner: 'Abhiram',
-    coordinationWith: 'Bhavika',
-    comments: 'Social media and content strategy',
-  },
-  {
-    id: 'cmo4',
-    title: 'Customer Acquisition Plan',
-    assignee: 'Abhiram',
-    assigneeRole: 'CMO',
-    status: 'ongoing',
-    dueDate: '2025-05-25',
-    priority: 'high',
-    owner: 'Abhiram',
-    comments: 'Growth marketing initiatives',
-  },
-  {
-    id: 'cmo5',
-    title: 'Marketing Budget Allocation',
-    assignee: 'Abhiram',
-    assigneeRole: 'CMO',
-    status: 'completed',
-    dueDate: '2025-04-28',
-    completedDate: '2025-04-28',
-    priority: 'high',
-    owner: 'Abhiram',
-    coordinationWith: 'Sahith',
-    comments: 'Budget approved by CEO',
-  },
-
   // Marketing Team Tasks (Bhavika - DCMO)
   {
     id: 'dcmo1',
@@ -850,29 +777,6 @@ export const WORK_TASKS: WorkTask[] = [
     priority: 'high',
     owner: 'Aradhya',
     comments: 'Logo and brand guidelines finalized',
-  },
-  {
-    id: 'design3',
-    title: 'Marketing Collateral Design',
-    assignee: 'Rudra Sahu',
-    assigneeRole: 'Designer',
-    status: 'ongoing',
-    dueDate: '2025-05-10',
-    priority: 'medium',
-    owner: 'Rudra Sahu',
-    coordinationWith: 'Abhiram',
-    comments: 'Brochures and presentation templates',
-  },
-  {
-    id: 'design4',
-    title: 'Website Design Updates',
-    assignee: 'Rudra Sahu',
-    assigneeRole: 'Designer',
-    status: 'ongoing',
-    dueDate: '2025-05-20',
-    priority: 'medium',
-    owner: 'Rudra Sahu',
-    comments: 'Landing page redesign',
   },
 ];
 
