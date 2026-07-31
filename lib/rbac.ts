@@ -147,6 +147,7 @@ export const ROLE_PERMISSIONS: Record<string, string[]> = {
     'notifications',
     'settings',
   ],
+  'Designer': [
     'dashboard',
     'team-directory',
     'work-tracker',
@@ -266,10 +267,7 @@ export function getAssignableMembers(user: User | null, allMembers: any[]): any[
   if (user.role === 'CTO') return activeMembers;
   
   // Product Manager can assign to all teams
-  if (user.role === 'Product Manager') return true;
-
-  // Product Manager can assign to all teams
-  if (user.role === 'Product Manager') return allMembers;
+  if (user.role === 'Product Manager') return activeMembers;
 
   // CSO can assign to Business team
   if (user.role === 'CSO') {
