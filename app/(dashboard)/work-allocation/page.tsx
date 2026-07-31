@@ -24,7 +24,7 @@ export default function WorkAllocationPage() {
   // RBAC: Filter team members based on user role
   const getVisibleMembers = () => {
     if (!user) return []
-    const activeMembers = TEAM_MEMBERS.filter(m => m.status !== 'inactive')
+    const activeMembers = TEAM_MEMBERS.filter(m => m.status !== 'inactive' && !['Abhiram', 'Rudra Sahu'].includes(m.name))
     
     // CEO sees everyone
     if (user.isSuperAdmin) {

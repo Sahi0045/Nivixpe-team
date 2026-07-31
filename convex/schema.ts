@@ -13,7 +13,8 @@ export default defineSchema({
       v.literal("Legal"),
       v.literal("Technical"),
       v.literal("Marketing"),
-      v.literal("Design")
+      v.literal("Design"),
+      v.literal("HR")
     )),
     additionalTeams: v.optional(v.array(v.string())),
     currentStatus: v.optional(v.string()),

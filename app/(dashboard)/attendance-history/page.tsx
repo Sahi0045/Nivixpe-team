@@ -61,18 +61,29 @@ export default function AttendanceHistoryPage() {
   const allHistory = useQuery(api.attendanceRecords.getAllHistory) || [];
   const rawMembers = useQuery(api.teamMembers.getAll) || [];
 
-  /* ── Deduplicate members ── */
+  const hiddenMembers = ['Abhiram', 'Rudra Sahu'];
+
+  /* ── Deduplicate members & exclude hidden/inactive ── */
   const teamMembers = useMemo(() => {
     const seen = new Set<string>();
-    return rawMembers.filter(m => { if (seen.has(m.email)) return false; seen.add(m.email); return true; });
+    return rawMembers.filter(m => {
+      if (seen.has(m.email)) return false;
+      seen.add(m.email);
+      if (m.status === 'inactive') return false;
+      if (hiddenMembers.includes(m.name)) return false;
+      return true;
+    });
   }, [rawMembers]);
 
-  /* ── Enrich history with member data ── */
+  /* ── Enrich history with member data, exclude unknown + hidden ── */
   const historyWithRoles = useMemo(() =>
-    allHistory.map(r => {
-      const m = teamMembers.find(tm => tm.email === r.email);
-      return { ...r, role: m?.role || 'Unknown', team: m?.team || 'Other', name: m?.name || r.email.split('@')[0] };
-    }),
+    allHistory
+      .map(r => {
+        const m = teamMembers.find(tm => tm.email === r.email);
+        if (!m) return null; // exclude records with no matching member
+        return { ...r, role: m.role, team: m.team || 'Other', name: m.name };
+      })
+      .filter(Boolean) as any[],
     [allHistory, teamMembers]
   );
 
@@ -82,22 +93,20 @@ export default function AttendanceHistoryPage() {
     return ['All Roles', ...unique];
   }, [teamMembers]);
 
-  /* ── Role-wise stats for chart ── */
+  /* ── Member-wise stats for chart (all active members, including 0-data ones) ── */
   const roleStats = useMemo(() => {
-    const stats: Record<string, { totalMins: number; count: number; presentCount: number }> = {};
-    historyWithRoles.forEach(r => {
-      if (!stats[r.role]) stats[r.role] = { totalMins: 0, count: 0, presentCount: 0 };
-      stats[r.role].totalMins += calcWorkMins(r.loginTime || '00:00', r.logoutTime, r.workHours);
-      stats[r.role].count += 1;
-      if (r.status === 'present') stats[r.role].presentCount += 1;
+    return teamMembers.map((member, i) => {
+      const records = historyWithRoles.filter(r => r.email === member.email);
+      const totalMins = records.reduce((a, r) => a + calcWorkMins(r.loginTime || '00:00', r.logoutTime, r.workHours), 0);
+      const presentCount = records.filter(r => r.status === 'present').length;
+      return {
+        role: member.name,  // use name as the bar label
+        avgHours: records.length > 0 ? +(totalMins / records.length / 60).toFixed(1) : 0,
+        attendanceRate: records.length > 0 ? Math.round((presentCount / records.length) * 100) : 0,
+        count: records.length,
+      };
     });
-    return Object.entries(stats).map(([role, d]) => ({
-      role,
-      avgHours: d.count > 0 ? +(d.totalMins / d.count / 60).toFixed(1) : 0,
-      attendanceRate: d.count > 0 ? Math.round((d.presentCount / d.count) * 100) : 0,
-      count: d.count,
-    }));
-  }, [historyWithRoles]);
+  }, [historyWithRoles, teamMembers]);
 
   /* ── Filtered history (permissions respected) ── */
   const filteredHistory = useMemo(() => {
@@ -307,7 +316,7 @@ export default function AttendanceHistoryPage() {
                     onChange={e => setSelectedPersonEmail(e.target.value)}
                   >
                     <option value="">Myself ({user?.name})</option>
-                    {teamMembers.filter(m => m.email !== user?.email).map(m => (
+                    {teamMembers.filter(m => m.email !== user?.email && !hiddenMembers.includes(m.name)).map(m => (
                       <option key={m._id} value={m.email}>{m.name}</option>
                     ))}
                   </select>

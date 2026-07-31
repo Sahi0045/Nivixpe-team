@@ -32,10 +32,14 @@ export default function AdminPage() {
   const [isRecalculating, setIsRecalculating] = useState(false);
   const [isSeeding, setIsSeeding] = useState(false);
 
-  const allTasks = useQuery(api.workTasks.getAll) || [];
-  const allMembers = useQuery(api.teamMembers.getAll) || [];
+  const hiddenMembers = ['Abhiram', 'Rudra Sahu'];
+  const allTasksRaw = useQuery(api.workTasks.getAll) || [];
+  const allTasks = allTasksRaw.filter(t => !hiddenMembers.includes(t.assignee));
+  const allMembersRaw = useQuery(api.teamMembers.getAll) || [];
+  const allMembers = allMembersRaw.filter(m => !hiddenMembers.includes(m.name));
   const allAttendance = useQuery(api.attendanceRecords.getAllHistory) || [];
-  const allLeaves = useQuery(api.leaveRequests.getAll) || [];
+  const allLeavesRaw = useQuery(api.leaveRequests.getAll) || [];
+  const allLeaves = allLeavesRaw.filter(l => !hiddenMembers.includes(l.employeeName));
   const allProofOfWork = useQuery(api.proofOfWork.getAll) || [];
   const allMeetings = useQuery(api.meetings.getAll) || [];
   const allDriveDocs = useQuery(api.driveDocuments.getAll) || [];
@@ -346,7 +350,7 @@ export default function AdminPage() {
         </div>
 
         <AdminIndividualTrackers
-          members={allMembers.filter((m) => m.name !== 'Abhiram')}
+          members={allMembers.filter((m) => m.name !== 'Abhiram' && m.name !== 'Rudra Sahu')}
           tasks={allTasks}
           attendance={allAttendance}
           leaves={allLeaves}
