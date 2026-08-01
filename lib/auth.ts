@@ -159,7 +159,7 @@ export const MOCK_USERS: Record<string, { password: string; user: User }> = {
     user: {
       id: '14',
       email: 'pm@nivixpe.com',
-      name: 'Aryan Kulshreshtra',
+      name: 'Aryan Kulshreshtha',
       role: 'Product Manager',
       department: 'HR',
       team: 'HR',

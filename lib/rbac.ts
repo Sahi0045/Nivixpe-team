@@ -144,6 +144,7 @@ export const ROLE_PERMISSIONS: Record<string, string[]> = {
     'attendance-history',
     'leave-management',
     'meetings',
+    'proof-of-work',
     'notifications',
     'settings',
   ],
@@ -225,8 +226,8 @@ export function canAssignTasks(user: User | null): boolean {
 
 export function canApprovePoW(user: User | null): boolean {
   if (!user) return false;
-  // Only CEO (SuperAdmin), CTO, or COO can approve Proof of Work
-  return user.isSuperAdmin || user.role === 'CTO' || user.role === 'COO';
+  // CEO, CTO, COO and Product Manager can approve Proof of Work
+  return user.isSuperAdmin || user.role === 'CTO' || user.role === 'COO' || user.role === 'Product Manager';
 }
 
 export function canAssignTasksTo(user: User | null, targetMember: any): boolean {
@@ -321,15 +322,24 @@ export function canViewTeamTasks(user: User | null, taskAssignee: string, allMem
   const assigneeMember = allMembers.find(m => m.name === taskAssignee);
   if (!assigneeMember) return false;
   
-  // Product Manager can view all tasks
-  if (user.role === 'Product Manager') return true;
-
+export function canViewTeamTasks(user: User | null, taskAssignee: string, allMembers: any[]): boolean {
+  if (!user) return false;
+  
+  // CEO, CTO, COO and Product Manager can view all
+  if (user.isSuperAdmin || user.role === 'CTO' || user.role === 'COO' || user.role === 'Product Manager') return true;
+  
+  // User can view their own tasks
+  if (user.name === taskAssignee) return true;
+  
+  // Find the assignee's team
+  const assigneeMember = allMembers.find(m => m.name === taskAssignee);
+  if (!assigneeMember) return false;
+  
   // Team heads can view their team's tasks
   if (user.role === 'CSO' && assigneeMember.team === 'Business') return true;
   if (user.role === 'DCSO' && assigneeMember.team === 'Business') return true;
   if (user.role === 'CMO' && (assigneeMember.team === 'Marketing' || assigneeMember.team === 'Design')) return true;
   if (user.role === 'DCMO' && assigneeMember.team === 'Marketing') return true;
-  if (user.role === 'COO') return true; // COO can view all teams' tasks
   if (user.role === 'Legal' && assigneeMember.team === 'Legal') return true;
   
   return false;

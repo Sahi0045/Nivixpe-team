@@ -205,7 +205,7 @@ export const TEAM_MEMBERS: TeamMember[] = [
   },
   {
     id: '14',
-    name: 'Aryan Kulshreshtra',
+    name: 'Aryan Kulshreshtha',
     email: 'pm@nivixpe.com',
     role: 'Product Manager',
     department: 'HR',
