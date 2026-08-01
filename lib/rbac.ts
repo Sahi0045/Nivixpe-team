@@ -144,8 +144,13 @@ export const ROLE_PERMISSIONS: Record<string, string[]> = {
     'attendance-history',
     'leave-management',
     'meetings',
+    'legal',
+    'proof-of-work',
+    'drive',
+    'tech-panel',
     'notifications',
     'settings',
+    'admin',
   ],
   'Designer': [
     'dashboard',
@@ -225,8 +230,8 @@ export function canAssignTasks(user: User | null): boolean {
 
 export function canApprovePoW(user: User | null): boolean {
   if (!user) return false;
-  // Only CEO (SuperAdmin), CTO, or COO can approve Proof of Work
-  return user.isSuperAdmin || user.role === 'CTO' || user.role === 'COO';
+  // CEO (SuperAdmin), CTO, COO, or Product Manager can approve Proof of Work
+  return user.isSuperAdmin || user.role === 'CTO' || user.role === 'COO' || user.role === 'Product Manager';
 }
 
 export function canAssignTasksTo(user: User | null, targetMember: any): boolean {
@@ -381,14 +386,14 @@ export function getTeamForUser(user: User | null): string {
 
 export function canAccessAdminPanel(user: User | null): boolean {
   if (!user) return false;
-  return user.isSuperAdmin || user.role === 'CTO' || user.role === 'COO';
+  return user.isSuperAdmin || user.role === 'CTO' || user.role === 'COO' || user.role === 'Product Manager';
 }
 
 export function canDeleteAllocatedTask(user: User | null, task: any): boolean {
   if (!user) return false;
   
-  // CEO, CTO, and COO can edit/delete any task
-  if (user.isSuperAdmin || user.role === 'CTO' || user.role === 'COO') {
+  // CEO, CTO, COO, and Product Manager can edit/delete any task
+  if (user.isSuperAdmin || user.role === 'CTO' || user.role === 'COO' || user.role === 'Product Manager') {
     return true;
   }
   
