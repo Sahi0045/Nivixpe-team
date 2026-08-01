@@ -144,9 +144,13 @@ export const ROLE_PERMISSIONS: Record<string, string[]> = {
     'attendance-history',
     'leave-management',
     'meetings',
+    'legal',
     'proof-of-work',
+    'drive',
+    'tech-panel',
     'notifications',
     'settings',
+    'admin',
   ],
   'Designer': [
     'dashboard',
@@ -226,7 +230,7 @@ export function canAssignTasks(user: User | null): boolean {
 
 export function canApprovePoW(user: User | null): boolean {
   if (!user) return false;
-  // CEO, CTO, COO and Product Manager can approve Proof of Work
+  // CEO (SuperAdmin), CTO, COO, or Product Manager can approve Proof of Work
   return user.isSuperAdmin || user.role === 'CTO' || user.role === 'COO' || user.role === 'Product Manager';
 }
 
@@ -322,24 +326,15 @@ export function canViewTeamTasks(user: User | null, taskAssignee: string, allMem
   const assigneeMember = allMembers.find(m => m.name === taskAssignee);
   if (!assigneeMember) return false;
   
-export function canViewTeamTasks(user: User | null, taskAssignee: string, allMembers: any[]): boolean {
-  if (!user) return false;
-  
-  // CEO, CTO, COO and Product Manager can view all
-  if (user.isSuperAdmin || user.role === 'CTO' || user.role === 'COO' || user.role === 'Product Manager') return true;
-  
-  // User can view their own tasks
-  if (user.name === taskAssignee) return true;
-  
-  // Find the assignee's team
-  const assigneeMember = allMembers.find(m => m.name === taskAssignee);
-  if (!assigneeMember) return false;
-  
+  // Product Manager can view all tasks
+  if (user.role === 'Product Manager') return true;
+
   // Team heads can view their team's tasks
   if (user.role === 'CSO' && assigneeMember.team === 'Business') return true;
   if (user.role === 'DCSO' && assigneeMember.team === 'Business') return true;
   if (user.role === 'CMO' && (assigneeMember.team === 'Marketing' || assigneeMember.team === 'Design')) return true;
   if (user.role === 'DCMO' && assigneeMember.team === 'Marketing') return true;
+  if (user.role === 'COO') return true; // COO can view all teams' tasks
   if (user.role === 'Legal' && assigneeMember.team === 'Legal') return true;
   
   return false;
@@ -391,14 +386,14 @@ export function getTeamForUser(user: User | null): string {
 
 export function canAccessAdminPanel(user: User | null): boolean {
   if (!user) return false;
-  return user.isSuperAdmin || user.role === 'CTO' || user.role === 'COO';
+  return user.isSuperAdmin || user.role === 'CTO' || user.role === 'COO' || user.role === 'Product Manager';
 }
 
 export function canDeleteAllocatedTask(user: User | null, task: any): boolean {
   if (!user) return false;
   
-  // CEO, CTO, and COO can edit/delete any task
-  if (user.isSuperAdmin || user.role === 'CTO' || user.role === 'COO') {
+  // CEO, CTO, COO, and Product Manager can edit/delete any task
+  if (user.isSuperAdmin || user.role === 'CTO' || user.role === 'COO' || user.role === 'Product Manager') {
     return true;
   }
   
