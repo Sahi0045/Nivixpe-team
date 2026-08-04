@@ -20,13 +20,13 @@ export interface AuthContextType {
   logout: () => void;
 }
 
-// Mock users for demo
+// Mock users for demo & fallback authentication
 export const MOCK_USERS: Record<string, { password: string; user: User }> = {
-  'ceo@nivixpe.com': {
+  'sahith@nivixpe.com': {
     password: 'ceo123',
     user: {
       id: '1',
-      email: 'ceo@nivixpe.com',
+      email: 'sahith@nivixpe.com',
       name: 'Sahith',
       role: 'CEO',
       department: 'Executive',
@@ -36,12 +36,26 @@ export const MOCK_USERS: Record<string, { password: string; user: User }> = {
       joinDate: '2020-01-15',
     },
   },
-  'cto@nivixpe.com': {
+  'ceo@nivixpe.com': {
+    password: 'ceo123',
+    user: {
+      id: '1',
+      email: 'sahith@nivixpe.com',
+      name: 'Sahith',
+      role: 'CEO',
+      department: 'Executive',
+      team: 'Business',
+      isSuperAdmin: true,
+      accessLevel: 'admin',
+      joinDate: '2020-01-15',
+    },
+  },
+  'shubhamc@nivixpe.com': {
     password: 'cto123',
     user: {
       id: '2',
-      email: 'cto@nivixpe.com',
-      name: 'Shubham',
+      email: 'shubhamc@nivixpe.com',
+      name: 'Co-founder,CTO',
       role: 'CTO',
       department: 'Technology',
       team: 'Technical',
@@ -49,12 +63,25 @@ export const MOCK_USERS: Record<string, { password: string; user: User }> = {
       joinDate: '2020-02-01',
     },
   },
-  'cso@nivixpe.com': {
+  'cto@nivixpe.com': {
+    password: 'cto123',
+    user: {
+      id: '2',
+      email: 'shubhamc@nivixpe.com',
+      name: 'Co-founder,CTO',
+      role: 'CTO',
+      department: 'Technology',
+      team: 'Technical',
+      accessLevel: 'admin',
+      joinDate: '2020-02-01',
+    },
+  },
+  'swaraag@nivixpe.com': {
     password: 'cso123',
     user: {
       id: '3',
-      email: 'cso@nivixpe.com',
-      name: 'Swaraag',
+      email: 'swaraag@nivixpe.com',
+      name: 'Swaraag Shrey Nambala',
       role: 'CSO',
       department: 'Sales & Strategy',
       team: 'Business',
@@ -62,25 +89,24 @@ export const MOCK_USERS: Record<string, { password: string; user: User }> = {
       joinDate: '2020-03-10',
     },
   },
-  // CMO account temporarily disabled — uncomment below to re-enable
-  // 'cmo@nivixpe.com': {
-  //   password: 'cmo123',
-  //   user: {
-  //     id: '4',
-  //     email: 'cmo@nivixpe.com',
-  //     name: 'Abhiram',
-  //     role: 'CMO',
-  //     department: 'Marketing',
-  //     team: 'Marketing',
-  //     accessLevel: 'manager',
-  //     joinDate: '2020-04-15',
-  //   },
-  // },
-  'dcso@nivixpe.com': {
+  'cso@nivixpe.com': {
+    password: 'cso123',
+    user: {
+      id: '3',
+      email: 'swaraag@nivixpe.com',
+      name: 'Swaraag Shrey Nambala',
+      role: 'CSO',
+      department: 'Sales & Strategy',
+      team: 'Business',
+      accessLevel: 'manager',
+      joinDate: '2020-03-10',
+    },
+  },
+  'ujjwal@nivixpe.com': {
     password: 'dcso123',
     user: {
-      id: '5',
-      email: 'dcso@nivixpe.com',
+      id: '4',
+      email: 'ujjwal@nivixpe.com',
       name: 'Ujjwal',
       role: 'DCSO',
       department: 'Deputy Sales & Strategy',
@@ -89,11 +115,24 @@ export const MOCK_USERS: Record<string, { password: string; user: User }> = {
       joinDate: '2021-01-20',
     },
   },
-  'dcmo@nivixpe.com': {
+  'dcso@nivixpe.com': {
+    password: 'dcso123',
+    user: {
+      id: '4',
+      email: 'ujjwal@nivixpe.com',
+      name: 'Ujjwal',
+      role: 'DCSO',
+      department: 'Deputy Sales & Strategy',
+      team: 'Business',
+      accessLevel: 'manager',
+      joinDate: '2021-01-20',
+    },
+  },
+  'n-wkw@nivixpe.com': {
     password: 'dcmo123',
     user: {
-      id: '6',
-      email: 'dcmo@nivixpe.com',
+      id: '5',
+      email: 'N-wkw@nivixpe.com',
       name: 'Bhavika',
       role: 'DCMO',
       department: 'Deputy Marketing',
@@ -102,11 +141,37 @@ export const MOCK_USERS: Record<string, { password: string; user: User }> = {
       joinDate: '2021-02-10',
     },
   },
-  'coo@nivixpe.com': {
+  'bhavika@nivixpe.com': {
+    password: 'dcmo123',
+    user: {
+      id: '5',
+      email: 'N-wkw@nivixpe.com',
+      name: 'Bhavika',
+      role: 'DCMO',
+      department: 'Deputy Marketing',
+      team: 'Marketing',
+      accessLevel: 'manager',
+      joinDate: '2021-02-10',
+    },
+  },
+  'bhavikad@nivixpe.com': {
+    password: 'dcmo123',
+    user: {
+      id: '5',
+      email: 'N-wkw@nivixpe.com',
+      name: 'Bhavika',
+      role: 'DCMO',
+      department: 'Deputy Marketing',
+      team: 'Marketing',
+      accessLevel: 'manager',
+      joinDate: '2021-02-10',
+    },
+  },
+  'siddharatha@nivixpe.com': {
     password: 'coo123',
     user: {
-      id: '7',
-      email: 'coo@nivixpe.com',
+      id: '6',
+      email: 'siddharatha@nivixpe.com',
       name: 'Siddharatha',
       role: 'COO',
       department: 'Operations',
@@ -115,24 +180,24 @@ export const MOCK_USERS: Record<string, { password: string; user: User }> = {
       joinDate: '2020-05-01',
     },
   },
-  'designer1@nivixpe.com': {
-    password: 'design123',
+  'coo@nivixpe.com': {
+    password: 'coo123',
     user: {
-      id: '8',
-      email: 'designer1@nivixpe.com',
-      name: 'Aradhya',
-      role: 'Designer',
-      department: 'Design',
-      team: 'Design',
-      accessLevel: 'employee',
-      joinDate: '2021-06-15',
+      id: '6',
+      email: 'siddharatha@nivixpe.com',
+      name: 'Siddharatha',
+      role: 'COO',
+      department: 'Operations',
+      team: 'Business',
+      accessLevel: 'admin',
+      joinDate: '2020-05-01',
     },
   },
-  'legal1@nivixpe.com': {
+  'kashish@nivixpe.com': {
     password: 'legal1123',
     user: {
-      id: '10',
-      email: 'legal1@nivixpe.com',
+      id: '7',
+      email: 'kashish@nivixpe.com',
       name: 'Kashish',
       role: 'Legal',
       department: 'Legal & Compliance',
@@ -141,11 +206,24 @@ export const MOCK_USERS: Record<string, { password: string; user: User }> = {
       joinDate: '2020-08-01',
     },
   },
-  'developer1@nivixpe.com': {
+  'legal1@nivixpe.com': {
+    password: 'legal1123',
+    user: {
+      id: '7',
+      email: 'kashish@nivixpe.com',
+      name: 'Kashish',
+      role: 'Legal',
+      department: 'Legal & Compliance',
+      team: 'Legal',
+      accessLevel: 'manager',
+      joinDate: '2020-08-01',
+    },
+  },
+  'nguyen@nivixpe.com': {
     password: 'dev123',
     user: {
-      id: '11',
-      email: 'developer1@nivixpe.com',
+      id: '8',
+      email: 'nguyen@nivixpe.com',
       name: 'Ngan Nguyen',
       role: 'Developer 1',
       department: 'Technology',
@@ -154,24 +232,24 @@ export const MOCK_USERS: Record<string, { password: string; user: User }> = {
       joinDate: '2025-05-01',
     },
   },
-  'pm@nivixpe.com': {
-    password: 'pm123',
+  'developer1@nivixpe.com': {
+    password: 'dev123',
     user: {
-      id: '14',
-      email: 'pm@nivixpe.com',
-      name: 'Aryan Kulshreshtra',
-      role: 'Product Manager',
-      department: 'HR',
-      team: 'HR',
-      accessLevel: 'manager',
-      joinDate: '2025-05-02',
+      id: '8',
+      email: 'nguyen@nivixpe.com',
+      name: 'Ngan Nguyen',
+      role: 'Developer 1',
+      department: 'Technology',
+      team: 'Technical',
+      accessLevel: 'employee',
+      joinDate: '2025-05-01',
     },
   },
-  'legal2@nivixpe.com': {
+  'vinisha@nivixpe.com': {
     password: 'legal2123',
     user: {
-      id: '13',
-      email: 'legal2@nivixpe.com',
+      id: '9',
+      email: 'vinisha@nivixpe.com',
       name: 'Vinisha',
       role: 'Legal Intern',
       department: 'Legal & Compliance',
@@ -180,24 +258,37 @@ export const MOCK_USERS: Record<string, { password: string; user: User }> = {
       joinDate: '2025-05-15',
     },
   },
-  'developer3@nivix.com': {
-    password: 'dev123',
+  'legal2@nivixpe.com': {
+    password: 'legal2123',
     user: {
-      id: '14',
-      email: 'developer3@nivix.com',
-      name: 'Nithin Sureddy',
-      role: 'Developer 3',
-      department: 'Technology',
-      team: 'Technical',
+      id: '9',
+      email: 'vinisha@nivixpe.com',
+      name: 'Vinisha',
+      role: 'Legal Intern',
+      department: 'Legal & Compliance',
+      team: 'Legal',
       accessLevel: 'employee',
-      joinDate: '2025-05-01',
+      joinDate: '2025-05-15',
     },
   },
-  'productmanager@nivix.com': {
+  'aryan@nivixpe.com': {
+    password: 'pm123',
+    user: {
+      id: '10',
+      email: 'aryan@nivixpe.com',
+      name: 'Aryan Kulshreshtra',
+      role: 'Product Manager',
+      department: 'HR',
+      team: 'HR',
+      accessLevel: 'manager',
+      joinDate: '2025-05-02',
+    },
+  },
+  'adya@nivixpe.com': {
     password: 'product123',
     user: {
-      id: '15',
-      email: 'productmanager@nivix.com',
+      id: '11',
+      email: 'adya@nivixpe.com',
       name: 'Adya Paliwal',
       role: 'Product Manager',
       department: 'Product',
@@ -205,6 +296,45 @@ export const MOCK_USERS: Record<string, { password: string; user: User }> = {
       isSuperAdmin: true,
       accessLevel: 'admin',
       joinDate: '2025-07-25',
+    },
+  },
+  'nithin@nivixpe.com': {
+    password: 'dev123',
+    user: {
+      id: '12',
+      email: 'nithin@nivixpe.com',
+      name: 'Nithin',
+      role: 'Developer 3',
+      department: 'Technology',
+      team: 'Technical',
+      accessLevel: 'employee',
+      joinDate: '2025-05-01',
+    },
+  },
+  'shubham@nivixpe.com': {
+    password: 'dev123',
+    user: {
+      id: '13',
+      email: 'shubham@nivixpe.com',
+      name: 'Shubham kumar kushwaha',
+      role: 'Developer 2',
+      department: 'Technology',
+      team: 'Technical',
+      accessLevel: 'employee',
+      joinDate: '2025-05-01',
+    },
+  },
+  'team@nivixpe.com': {
+    password: 'team123',
+    user: {
+      id: '14',
+      email: 'team@nivixpe.com',
+      name: 'nivixpe',
+      role: 'Admin',
+      department: 'Operations',
+      team: 'Business',
+      accessLevel: 'admin',
+      joinDate: '2025-01-01',
     },
   },
 };

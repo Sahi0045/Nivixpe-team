@@ -133,18 +133,20 @@ CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications(user_id);
 -- SEED REAL DATA WITH NAMES (NO RAW EMAILS FOR IDENTIFIERS)
 INSERT INTO team_members (id, name, email, role, department, team, reports_to, status, join_date)
 VALUES
-('1', 'Sahith', 'ceo@nivixpe.com', 'CEO', 'Executive', 'Business', NULL, 'active', '2020-01-15'),
-('2', 'Shubham', 'cto@nivixpe.com', 'CTO', 'Technology', 'Technical', 'Sahith', 'active', '2020-02-01'),
-('3', 'Swaraag', 'cso@nivixpe.com', 'CSO', 'Sales & Strategy', 'Business', 'Sahith', 'active', '2020-03-10'),
-('5', 'Ujjwal', 'dcso@nivixpe.com', 'DCSO', 'Deputy Sales & Strategy', 'Business', 'Swaraag', 'active', '2021-01-20'),
-('6', 'Bhavika', 'dcmo@nivixpe.com', 'DCMO', 'Deputy Marketing', 'Marketing', 'Abhiram', 'active', '2021-02-10'),
-('7', 'Siddharatha', 'coo@nivixpe.com', 'COO', 'Operations', 'Business', 'Sahith', 'active', '2020-05-01'),
-('8', 'Aradhya', 'designer1@nivixpe.com', 'Designer', 'Design', 'Design', 'Shubham', 'active', '2021-06-15'),
-('10', 'Kashish', 'legal1@nivixpe.com', 'Legal', 'Legal & Compliance', 'Legal', 'Sahith', 'active', '2020-08-01'),
-('11', 'Ngan Nguyen', 'developer1@nivixpe.com', 'Developer 1', 'Technology', 'Technical', 'Shubham', 'active', '2025-05-01'),
-('13', 'Vinisha', 'legal2@nivixpe.com', 'Legal Intern', 'Legal & Compliance', 'Legal', 'Sahith', 'active', '2025-05-15'),
-('14', 'Aryan Kulshreshtra', 'pm@nivixpe.com', 'Product Manager', 'HR', 'HR', 'Sahith', 'active', '2025-05-02'),
-('15', 'Adya Paliwal', 'productmanager@nivix.com', 'Product Manager', 'Product', 'Business', 'Sahith', 'active', '2025-07-25')
+('1', 'Sahith', 'sahith@nivixpe.com', 'CEO', 'Executive', 'Business', NULL, 'active', '2020-01-15'),
+('2', 'Co-founder,CTO', 'shubhamc@nivixpe.com', 'CTO', 'Technology', 'Technical', 'Sahith', 'active', '2020-02-01'),
+('3', 'Swaraag Shrey Nambala', 'swaraag@nivixpe.com', 'CSO', 'Sales & Strategy', 'Business', 'Sahith', 'active', '2020-03-10'),
+('4', 'Ujjwal', 'ujjwal@nivixpe.com', 'DCSO', 'Deputy Sales & Strategy', 'Business', 'Swaraag Shrey Nambala', 'active', '2021-01-20'),
+('5', 'Bhavika', 'N-wkw@nivixpe.com', 'DCMO', 'Deputy Marketing', 'Marketing', 'Sahith', 'active', '2021-02-10'),
+('6', 'Siddharatha', 'siddharatha@nivixpe.com', 'COO', 'Operations', 'Business', 'Sahith', 'active', '2020-05-01'),
+('7', 'Kashish', 'kashish@nivixpe.com', 'Legal', 'Legal & Compliance', 'Legal', 'Sahith', 'active', '2020-08-01'),
+('8', 'Ngan Nguyen', 'nguyen@nivixpe.com', 'Developer 1', 'Technology', 'Technical', 'Co-founder,CTO', 'active', '2025-05-01'),
+('9', 'Vinisha', 'vinisha@nivixpe.com', 'Legal Intern', 'Legal & Compliance', 'Legal', 'Sahith', 'active', '2025-05-15'),
+('10', 'Aryan Kulshreshtra', 'aryan@nivixpe.com', 'Product Manager', 'HR', 'HR', 'Sahith', 'active', '2025-05-02'),
+('11', 'Adya Paliwal', 'adya@nivixpe.com', 'Product Manager', 'Product', 'Business', 'Sahith', 'active', '2025-07-25'),
+('12', 'Nithin', 'nithin@nivixpe.com', 'Developer 3', 'Technology', 'Technical', 'Co-founder,CTO', 'active', '2025-05-01'),
+('13', 'Shubham kumar kushwaha', 'shubham@nivixpe.com', 'Developer 2', 'Technology', 'Technical', 'Co-founder,CTO', 'active', '2025-05-01'),
+('14', 'nivixpe', 'team@nivixpe.com', 'Admin', 'Operations', 'Business', 'Sahith', 'active', '2025-01-01')
 ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO work_tasks (id, title, assignee, assignee_role, status, due_date, priority, owner, comments)

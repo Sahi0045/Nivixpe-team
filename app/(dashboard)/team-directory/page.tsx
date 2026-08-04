@@ -5,7 +5,7 @@ import { useAuth } from '@/app/providers';
 import { Header } from '@/components/header';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { Search, User as UserIcon, Calendar, Clock, X, FolderOpen, Shield, CheckSquare, Square } from 'lucide-react';
+import { Search, User as UserIcon, Calendar, Clock, X, FolderOpen, Shield, CheckSquare, Square, Plus } from 'lucide-react';
 import { PageFilterBar } from '@/components/page-filter-bar';
 import { DriveFolder, DRIVE_FOLDERS } from '@/lib/drive-access';
 import { supabaseDb, AttendanceRecord, TeamMember } from '@/lib/supabase-db';
@@ -18,12 +18,58 @@ export default function TeamDirectoryPage() {
   const [filterRole, setFilterRole] = useState('all');
   const [filterTeam, setFilterTeam] = useState('all');
   const [selectedMember, setSelectedMember] = useState<TeamMember | null>(null);
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [newMemberForm, setNewMemberForm] = useState({
+    name: '',
+    role: 'Developer 1',
+    department: 'Technology',
+    team: 'Technical' as 'Business' | 'Legal' | 'Technical' | 'Marketing' | 'Design' | 'HR',
+    customEmail: '',
+  });
 
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
 
-  useEffect(() => {
+  const loadData = () => {
     supabaseDb.getTeamMembers().then(setTeamMembers as any);
+  };
+
+  useEffect(() => {
+    loadData();
+    const unsub = supabaseDb.subscribeToChanges('team_members', loadData);
+    return () => unsub();
   }, []);
+
+  const canAddMember = user?.isSuperAdmin || user?.role === 'CEO' || user?.role === 'CTO' || user?.role === 'COO';
+
+  const handleAddMember = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newMemberForm.name.trim()) {
+      toast.error('Please enter the team member name');
+      return;
+    }
+    const username = newMemberForm.name.trim().toLowerCase().split(' ')[0];
+    const generatedEmail = newMemberForm.customEmail.trim() 
+      ? newMemberForm.customEmail.trim().toLowerCase() 
+      : `${username}@nivixpe.com`;
+
+    try {
+      await supabaseDb.addTeamMember({
+        name: newMemberForm.name.trim(),
+        email: generatedEmail,
+        role: newMemberForm.role as any,
+        department: newMemberForm.department,
+        team: newMemberForm.team,
+        status: 'active',
+        joinDate: new Date().toISOString().split('T')[0],
+      });
+      toast.success(`Added ${newMemberForm.name} with email ${generatedEmail} (${newMemberForm.role})`);
+      setShowAddModal(false);
+      setNewMemberForm({ name: '', role: 'Developer 1', department: 'Technology', team: 'Technical', customEmail: '' });
+      loadData();
+    } catch {
+      toast.error('Failed to add team member');
+    }
+  };
 
   const filteredMembers = teamMembers.filter((member) => {
     if (member.status === 'inactive') return false;
@@ -69,6 +115,16 @@ export default function TeamDirectoryPage() {
                   <option key={role} value={role}>{role}</option>
                 ))}
               </select>
+
+              {canAddMember && (
+                <button
+                  onClick={() => setShowAddModal(true)}
+                  className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-all shadow-sm cursor-pointer"
+                >
+                  <Plus className="w-4 h-4" />
+                  Add Member
+                </button>
+              )}
             </div>
           }
         />
@@ -128,6 +184,106 @@ export default function TeamDirectoryPage() {
           </CardContent>
         </Card>
       </div>
+
+      {showAddModal && (
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
+          <Card className="w-full max-w-md shadow-2xl animate-in fade-in zoom-in duration-200">
+            <CardHeader className="flex flex-row items-center justify-between border-b pb-4">
+              <CardTitle className="text-xl font-bold">Add New Team Member</CardTitle>
+              <button onClick={() => setShowAddModal(false)} className="p-2 hover:bg-slate-100 rounded-full transition-colors">
+                <X className="h-5 w-5" />
+              </button>
+            </CardHeader>
+            <form onSubmit={handleAddMember}>
+              <CardContent className="p-6 space-y-4">
+                <div>
+                  <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1">Full Name</label>
+                  <Input
+                    placeholder="e.g. Rahul Sharma"
+                    value={newMemberForm.name}
+                    onChange={(e) => setNewMemberForm({ ...newMemberForm, name: e.target.value })}
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1">Role</label>
+                  <select
+                    value={newMemberForm.role}
+                    onChange={(e) => setNewMemberForm({ ...newMemberForm, role: e.target.value as any })}
+                    className="w-full px-3 py-2 border border-input rounded-lg bg-background text-sm font-medium"
+                  >
+                    <option value="CEO">CEO</option>
+                    <option value="CTO">CTO</option>
+                    <option value="COO">COO</option>
+                    <option value="CSO">CSO</option>
+                    <option value="DCSO">DCSO</option>
+                    <option value="DCMO">DCMO</option>
+                    <option value="Legal">Legal</option>
+                    <option value="Legal Intern">Legal Intern</option>
+                    <option value="Designer">Designer</option>
+                    <option value="Developer 1">Developer 1</option>
+                    <option value="Developer 2">Developer 2</option>
+                    <option value="Developer 3">Developer 3</option>
+                    <option value="Product Manager">Product Manager</option>
+                  </select>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1">Department</label>
+                    <Input
+                      placeholder="e.g. Technology"
+                      value={newMemberForm.department}
+                      onChange={(e) => setNewMemberForm({ ...newMemberForm, department: e.target.value })}
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1">Primary Team</label>
+                    <select
+                      value={newMemberForm.team}
+                      onChange={(e) => setNewMemberForm({ ...newMemberForm, team: e.target.value as any })}
+                      className="w-full px-3 py-2 border border-input rounded-lg bg-background text-sm font-medium"
+                    >
+                      <option value="Business">Business</option>
+                      <option value="Technical">Technical</option>
+                      <option value="Marketing">Marketing</option>
+                      <option value="Legal">Legal</option>
+                      <option value="Design">Design</option>
+                      <option value="HR">HR</option>
+                    </select>
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1">
+                    Email Address <span className="font-normal text-slate-400">(Auto-generated as username@nivixpe.com)</span>
+                  </label>
+                  <Input
+                    placeholder={newMemberForm.name.trim() ? `${newMemberForm.name.trim().toLowerCase().split(' ')[0]}@nivixpe.com` : 'username@nivixpe.com'}
+                    value={newMemberForm.customEmail}
+                    onChange={(e) => setNewMemberForm({ ...newMemberForm, customEmail: e.target.value })}
+                  />
+                </div>
+
+                <div className="flex gap-2 pt-3">
+                  <button
+                    type="button"
+                    onClick={() => setShowAddModal(false)}
+                    className="flex-1 px-4 py-2 border border-slate-200 text-slate-700 rounded-lg text-sm font-medium hover:bg-slate-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-all"
+                  >
+                    Add Member
+                  </button>
+                </div>
+              </CardContent>
+            </form>
+          </Card>
+        </div>
+      )}
 
       {selectedMember && (
         <AttendanceModal 

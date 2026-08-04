@@ -68,8 +68,23 @@ export interface DriveAccessGrantRecord {
   grantedAt: string;
 }
 
-// In-memory state initialized empty (all data sourced from Supabase)
-let localTeamMembers: TeamMember[] = [];
+// In-memory fallback state initialized with official organization team members
+let localTeamMembers: TeamMember[] = [
+  { id: '1', name: 'Sahith', email: 'sahith@nivixpe.com', role: 'CEO', department: 'Executive', team: 'Business', status: 'active', joinDate: '2020-01-15' },
+  { id: '2', name: 'Co-founder,CTO', email: 'shubhamc@nivixpe.com', role: 'CTO', department: 'Technology', team: 'Technical', reportsTo: 'Sahith', status: 'active', joinDate: '2020-02-01' },
+  { id: '3', name: 'Swaraag Shrey Nambala', email: 'swaraag@nivixpe.com', role: 'CSO', department: 'Sales & Strategy', team: 'Business', reportsTo: 'Sahith', status: 'active', joinDate: '2020-03-10' },
+  { id: '4', name: 'Ujjwal', email: 'ujjwal@nivixpe.com', role: 'DCSO', department: 'Deputy Sales & Strategy', team: 'Business', reportsTo: 'Swaraag Shrey Nambala', status: 'active', joinDate: '2021-01-20' },
+  { id: '5', name: 'Bhavika', email: 'N-wkw@nivixpe.com', role: 'DCMO', department: 'Deputy Marketing', team: 'Marketing', status: 'active', joinDate: '2021-02-10' },
+  { id: '6', name: 'Siddharatha', email: 'siddharatha@nivixpe.com', role: 'COO', department: 'Operations', team: 'Business', reportsTo: 'Sahith', status: 'active', joinDate: '2020-05-01' },
+  { id: '7', name: 'Kashish', email: 'kashish@nivixpe.com', role: 'Legal', department: 'Legal & Compliance', team: 'Legal', reportsTo: 'Sahith', status: 'active', joinDate: '2020-08-01' },
+  { id: '8', name: 'Ngan Nguyen', email: 'nguyen@nivixpe.com', role: 'Developer 1', department: 'Technology', team: 'Technical', reportsTo: 'Co-founder,CTO', status: 'active', joinDate: '2025-05-01' },
+  { id: '9', name: 'Vinisha', email: 'vinisha@nivixpe.com', role: 'Legal Intern', department: 'Legal & Compliance', team: 'Legal', reportsTo: 'Sahith', status: 'active', joinDate: '2025-05-15' },
+  { id: '10', name: 'Aryan Kulshreshtra', email: 'aryan@nivixpe.com', role: 'Product Manager', department: 'HR', team: 'HR', reportsTo: 'Sahith', status: 'active', joinDate: '2025-05-02' },
+  { id: '11', name: 'Adya Paliwal', email: 'adya@nivixpe.com', role: 'Product Manager', department: 'Product', team: 'Business', reportsTo: 'Sahith', status: 'active', joinDate: '2025-07-25' },
+  { id: '12', name: 'Nithin', email: 'nithin@nivixpe.com', role: 'Developer 3', department: 'Technology', team: 'Technical', reportsTo: 'Co-founder,CTO', status: 'active', joinDate: '2025-05-01' },
+  { id: '13', name: 'Shubham kumar kushwaha', email: 'shubham@nivixpe.com', role: 'Developer 2', department: 'Technology', team: 'Technical', reportsTo: 'Co-founder,CTO', status: 'active', joinDate: '2025-05-01' },
+  { id: '14', name: 'nivixpe', email: 'team@nivixpe.com', role: 'Admin', department: 'Operations', team: 'Business', reportsTo: 'Sahith', status: 'active', joinDate: '2025-01-01' }
+];
 let localWorkTasks: WorkTask[] = [];
 let localAttendanceRecords: AttendanceRecord[] = [];
 let localLeaveRequests: LeaveRequest[] = [];
@@ -1054,14 +1069,29 @@ export const supabaseDb = {
     try {
       const { data, error } = await supabase.from('team_members').select('*');
       if (error || !data || data.length === 0) return localTeamMembers;
-      return data as TeamMember[];
+      return data.map((m: any) => ({
+        id: String(m.id),
+        name: m.name,
+        email: m.email,
+        role: m.role,
+        department: m.department,
+        team: m.team,
+        additionalTeams: m.additional_teams || m.additionalTeams,
+        reportsTo: m.reports_to || m.reportsTo,
+        status: m.status || 'active',
+        lastLogin: m.last_login || m.lastLogin,
+        joinDate: m.join_date || m.joinDate || '2020-01-15',
+      })) as TeamMember[];
     } catch {
       return localTeamMembers;
     }
   },
 
   async addTeamMember(member: Omit<TeamMember, 'id'>): Promise<TeamMember> {
-    const newMember = { ...member, id: String(Date.now()) };
+    const formattedEmail = member.email && member.email.trim() && !member.email.includes('placeholder')
+      ? member.email.trim().toLowerCase()
+      : `${member.name.trim().toLowerCase().split(' ')[0]}@nivixpe.com`;
+    const newMember = { ...member, email: formattedEmail, id: String(Date.now()) };
     if (!isSupabaseConfigured) {
       localTeamMembers.push(newMember);
       return newMember;
@@ -1171,7 +1201,17 @@ export const supabaseDb = {
     try {
       const { data, error } = await supabase.from('leave_requests').select('*');
       if (error || !data || data.length === 0) return localLeaveRequests;
-      return data as LeaveRequest[];
+      return data.map((r: any) => ({
+        id: r.id,
+        employeeName: r.employee_name || r.employeeName,
+        employeeEmail: r.employee_email || r.employeeEmail,
+        startDate: r.start_date || r.startDate,
+        endDate: r.end_date || r.endDate,
+        reason: r.reason,
+        status: r.status,
+        type: r.type,
+        approvedBy: r.approved_by || r.approvedBy,
+      }));
     } catch {
       return localLeaveRequests;
     }
@@ -1184,12 +1224,23 @@ export const supabaseDb = {
       return newReq;
     }
     try {
-      const { data, error } = await supabase.from('leave_requests').insert([newReq]).select();
+      const dbRecord = {
+        id: newReq.id,
+        employee_name: newReq.employeeName,
+        employee_email: newReq.employeeEmail,
+        start_date: newReq.startDate,
+        end_date: newReq.endDate,
+        reason: newReq.reason,
+        status: newReq.status,
+        type: newReq.type,
+        approved_by: newReq.approvedBy || null,
+      };
+      const { data, error } = await supabase.from('leave_requests').insert([dbRecord]).select();
       if (error || !data) {
         localLeaveRequests.unshift(newReq);
         return newReq;
       }
-      return data[0] as LeaveRequest;
+      return newReq;
     } catch {
       localLeaveRequests.unshift(newReq);
       return newReq;
@@ -1262,7 +1313,21 @@ export const supabaseDb = {
     try {
       const { data, error } = await supabase.from('proof_of_work').select('*');
       if (error || !data || data.length === 0) return localProofOfWork;
-      return data as ProofOfWorkRecord[];
+      return data.map((r: any) => ({
+        id: r.id,
+        taskId: r.task_id || r.taskId,
+        taskTitle: r.task_title || r.taskTitle,
+        submittedBy: r.submitted_by || r.submittedBy,
+        submittedByEmail: r.submitted_by_email || r.submittedByEmail,
+        submissionDate: r.submission_date || r.submissionDate,
+        workDescription: r.work_description || r.workDescription,
+        proofLink: r.proof_link || r.proofLink,
+        proofLinks: r.proof_links || r.proofLinks || [],
+        fileSize: r.file_size || r.fileSize,
+        status: r.status,
+        reviewedBy: r.reviewed_by || r.reviewedBy,
+        reviewComments: r.review_comments || r.reviewComments,
+      }));
     } catch {
       return localProofOfWork;
     }
@@ -1275,12 +1340,27 @@ export const supabaseDb = {
       return newPow;
     }
     try {
-      const { data, error } = await supabase.from('proof_of_work').insert([newPow]).select();
+      const dbRecord = {
+        id: newPow.id,
+        task_id: newPow.taskId || null,
+        task_title: newPow.taskTitle,
+        submitted_by: newPow.submittedBy,
+        submitted_by_email: newPow.submittedByEmail,
+        submission_date: newPow.submissionDate,
+        work_description: newPow.workDescription,
+        proof_link: newPow.proofLink || null,
+        proof_links: newPow.proofLinks || [],
+        file_size: newPow.fileSize || null,
+        status: newPow.status,
+        reviewed_by: newPow.reviewedBy || null,
+        review_comments: newPow.reviewComments || null,
+      };
+      const { data, error } = await supabase.from('proof_of_work').insert([dbRecord]).select();
       if (error || !data) {
         localProofOfWork.unshift(newPow);
         return newPow;
       }
-      return data[0] as ProofOfWorkRecord;
+      return newPow;
     } catch {
       localProofOfWork.unshift(newPow);
       return newPow;
@@ -1297,7 +1377,7 @@ export const supabaseDb = {
     try {
       await supabase
         .from('proof_of_work')
-        .update({ status, reviewComments: comments, reviewedBy: reviewer })
+        .update({ status, review_comments: comments, reviewed_by: reviewer })
         .eq('id', id);
     } catch {
       localProofOfWork = localProofOfWork.map((p) =>
@@ -1312,7 +1392,17 @@ export const supabaseDb = {
     try {
       const { data, error } = await supabase.from('drive_documents').select('*');
       if (error || !data || data.length === 0) return localDriveDocuments;
-      return data as DriveDocumentRecord[];
+      return data.map((r: any) => ({
+        id: r.id,
+        teamFolder: r.team_folder || r.teamFolder,
+        uploadedBy: r.uploaded_by || r.uploadedBy,
+        uploadedByEmail: r.uploaded_by_email || r.uploadedByEmail,
+        fileName: r.file_name || r.fileName,
+        fileSize: r.file_size || r.fileSize,
+        externalLink: r.external_link || r.externalLink,
+        description: r.description || '',
+        uploadedAt: r.uploaded_at || r.uploadedAt,
+      }));
     } catch {
       return localDriveDocuments;
     }
@@ -1325,12 +1415,23 @@ export const supabaseDb = {
       return newDoc;
     }
     try {
-      const { data, error } = await supabase.from('drive_documents').insert([newDoc]).select();
+      const dbRecord = {
+        id: newDoc.id,
+        team_folder: newDoc.teamFolder,
+        uploaded_by: newDoc.uploadedBy,
+        uploaded_by_email: newDoc.uploadedByEmail,
+        file_name: newDoc.fileName,
+        file_size: newDoc.fileSize || null,
+        external_link: newDoc.externalLink || null,
+        description: newDoc.description || '',
+        uploaded_at: newDoc.uploadedAt,
+      };
+      const { data, error } = await supabase.from('drive_documents').insert([dbRecord]).select();
       if (error || !data) {
         localDriveDocuments.unshift(newDoc);
         return newDoc;
       }
-      return data[0] as DriveDocumentRecord;
+      return newDoc;
     } catch {
       localDriveDocuments.unshift(newDoc);
       return newDoc;
@@ -1343,7 +1444,14 @@ export const supabaseDb = {
     try {
       const { data, error } = await supabase.from('drive_access_grants').select('*');
       if (error || !data || data.length === 0) return localDriveAccessGrants;
-      return data as DriveAccessGrantRecord[];
+      return data.map((r: any) => ({
+        id: r.id,
+        grantedTo: r.granted_to || r.grantedTo,
+        grantedToEmail: r.granted_to_email || r.grantedToEmail,
+        grantedBy: r.granted_by || r.grantedBy,
+        folders: r.folders || [],
+        grantedAt: r.granted_at || r.grantedAt,
+      }));
     } catch {
       return localDriveAccessGrants;
     }
@@ -1356,7 +1464,15 @@ export const supabaseDb = {
       return;
     }
     try {
-      await supabase.from('drive_access_grants').insert([newGrant]);
+      const dbRecord = {
+        id: newGrant.id,
+        granted_to: newGrant.grantedTo,
+        granted_to_email: newGrant.grantedToEmail,
+        granted_by: newGrant.grantedBy,
+        folders: newGrant.folders || [],
+        granted_at: newGrant.grantedAt,
+      };
+      await supabase.from('drive_access_grants').insert([dbRecord]);
     } catch {
       localDriveAccessGrants.push(newGrant);
     }
@@ -1371,11 +1487,20 @@ export const supabaseDb = {
       const { data, error } = await supabase
         .from('notifications')
         .select('*')
-        .or(`userId.eq.${userId},userId.eq.all`);
+        .or(`user_id.eq.${userId},user_id.eq.all`);
       if (error || !data || data.length === 0) {
         return localNotifications.filter((n) => n.userId === userId || n.userId === 'all');
       }
-      return data as NotificationRecord[];
+      return data.map((r: any) => ({
+        id: r.id,
+        userId: r.user_id || r.userId,
+        title: r.title,
+        message: r.message,
+        type: r.type,
+        isRead: r.is_read ?? r.isRead ?? false,
+        createdAt: r.created_at || r.createdAt,
+        link: r.link,
+      }));
     } catch {
       return localNotifications.filter((n) => n.userId === userId || n.userId === 'all');
     }
@@ -1387,7 +1512,7 @@ export const supabaseDb = {
       return;
     }
     try {
-      await supabase.from('notifications').update({ isRead: true }).eq('id', id);
+      await supabase.from('notifications').update({ is_read: true }).eq('id', id);
     } catch {
       localNotifications = localNotifications.map((n) => (n.id === id ? { ...n, isRead: true } : n));
     }
