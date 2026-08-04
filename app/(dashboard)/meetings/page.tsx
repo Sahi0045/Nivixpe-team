@@ -3,50 +3,32 @@
 import { Header } from '@/components/header';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Calendar, Users, FileText, Plus, Upload, Shield, X } from 'lucide-react';
-import { useQuery, useMutation } from 'convex/react';
-import { api } from '@/convex/_generated/api';
 import { useAuth } from '@/app/providers';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { supabaseDb, Meeting } from '@/lib/supabase-db';
 import { TEAM_MEMBERS } from '@/lib/mock-data';
 import { confirmDelete } from '@/lib/confirm-delete';
 import { toast } from 'sonner';
-import { Id } from '@/convex/_generated/dataModel';
-
-function MinutesFileLink({ storageId }: { storageId: Id<'_storage'> }) {
-  const url = useQuery(api.files.getFileUrl, { storageId });
-  if (!url) return null;
-  return (
-    <div className="pt-2 border-t border-green-200 mt-2">
-      <a
-        href={url}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="inline-flex items-center gap-2 text-green-700 font-medium text-sm hover:text-green-800 hover:underline"
-      >
-        <FileText className="w-4 h-4" />
-        View Uploaded Minutes Document
-      </a>
-    </div>
-  );
-}
 
 export default function MeetingsPage() {
   const { user } = useAuth();
 
-  const allMeetings = useQuery(api.meetings.getAll) || [];
+  const [allMeetings, setAllMeetings] = useState<Meeting[]>([]);
 
-  const createMeeting = useMutation(api.meetings.create);
-  const updateMeeting = useMutation(api.meetings.update);
-  const deleteMeeting = useMutation(api.meetings.remove);
-  const generateUploadUrl = useMutation(api.files.generateUploadUrl);
+  const loadData = async () => {
+    const m = await supabaseDb.getMeetings();
+    setAllMeetings(m);
+  };
+
+  useEffect(() => {
+    loadData();
+  }, []);
 
   const canManageMeetings = user?.isSuperAdmin || user?.role === 'CEO' || user?.role === 'COO';
 
   const [showScheduleForm, setShowScheduleForm] = useState(false);
   const [showMOMUpload, setShowMOMUpload] = useState<string | null>(null);
   const [isScheduling, setIsScheduling] = useState(false);
-  const [isUploading, setIsUploading] = useState(false);
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
   const [scheduleFormData, setScheduleFormData] = useState({
     title: '',
@@ -75,16 +57,15 @@ export default function MeetingsPage() {
 
     setIsScheduling(true);
     try {
-      await createMeeting({
+      await supabaseDb.createMeeting({
         title: scheduleFormData.title,
         date: scheduleFormData.date || new Date().toISOString().split('T')[0],
         time: scheduleFormData.time || '00:00',
         attendees: scheduleFormData.attendees,
         status: 'scheduled',
-        agenda: scheduleFormData.agenda || undefined,
-        scheduledBy: user.name,
       });
 
+      await loadData();
       setScheduleFormData({ title: '', date: '', time: '', attendees: [], agenda: '' });
       setShowScheduleForm(false);
       toast.success('Meeting created successfully!');
@@ -96,45 +77,24 @@ export default function MeetingsPage() {
     }
   };
 
-  const handleUploadMOM = async (e: React.FormEvent, meetingId: any) => {
+  const handleUploadMOM = async (e: React.FormEvent, meetingId: string) => {
     e.preventDefault();
     if (!canManageMeetings) return;
 
-    setIsUploading(true);
     try {
-      let minutesFileId: any = undefined;
-      
-      if (selectedFile) {
-        const postUrl = await generateUploadUrl();
-        const result = await fetch(postUrl, {
-          method: "POST",
-          headers: { "Content-Type": selectedFile.type },
-          body: selectedFile,
-        });
-        
-        if (!result.ok) throw new Error("Failed to upload file");
-        const { storageId } = await result.json();
-        minutesFileId = storageId;
-      }
-
-      await updateMeeting({
-        id: meetingId,
-        status: 'completed',
+      await supabaseDb.completeMeeting(meetingId, {
         minutesUrl: momFormData.minutesUrl || undefined,
-        minutesFile: minutesFileId,
         meetLink: momFormData.meetLink || undefined,
         decisions: momFormData.decisions || undefined,
       });
 
+      await loadData();
       setMOMFormData({ minutesUrl: '', meetLink: '', decisions: '' });
-      setSelectedFile(null);
       setShowMOMUpload(null);
       toast.success('Minutes of Meeting saved successfully!');
     } catch (error) {
       console.error('Error saving MOM:', error);
       toast.error('Failed to save MOM');
-    } finally {
-      setIsUploading(false);
     }
   };
 
@@ -147,12 +107,13 @@ export default function MeetingsPage() {
     }));
   };
 
-  const handleDeleteMeeting = async (meetingId: any, meetingTitle: string) => {
+  const handleDeleteMeeting = async (meetingId: string, meetingTitle: string) => {
     if (!canManageMeetings) return;
     if (!(await confirmDelete('meeting', meetingTitle))) return;
 
     try {
-      await deleteMeeting({ id: meetingId });
+      await supabaseDb.deleteMeeting(meetingId);
+      await loadData();
       toast.success('Meeting deleted successfully.');
     } catch (error) {
       console.error('Error deleting meeting:', error);
@@ -352,9 +313,11 @@ export default function MeetingsPage() {
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
-                {scheduled.map((meeting) => (
+                {scheduled.map((meeting) => {
+                  const mId = meeting.id || (meeting as any)._id;
+                  return (
                   <div
-                    key={meeting._id}
+                    key={mId}
                     className="p-4 rounded-lg bg-blue-50 border border-blue-200 space-y-3"
                   >
                     <div className="flex items-center justify-between">
@@ -377,7 +340,7 @@ export default function MeetingsPage() {
                           <>
                             <button
                               onClick={() =>
-                                setShowMOMUpload(showMOMUpload === meeting._id ? null : meeting._id)
+                                setShowMOMUpload(showMOMUpload === mId ? null : mId)
                               }
                               className="flex items-center gap-1 px-3 py-1 bg-green-600 text-white rounded text-xs font-medium hover:bg-green-700"
                             >
@@ -385,7 +348,7 @@ export default function MeetingsPage() {
                               Add MOM
                             </button>
                             <button
-                              onClick={() => handleDeleteMeeting(meeting._id, meeting.title)}
+                              onClick={() => handleDeleteMeeting(mId, meeting.title)}
                               className="p-1 text-red-500 hover:text-red-700 hover:bg-red-50 rounded transition-colors"
                               title="Delete meeting"
                             >
@@ -433,9 +396,9 @@ export default function MeetingsPage() {
                     )}
 
                     {/* MOM Form */}
-                    {canManageMeetings && showMOMUpload === meeting._id && (
+                    {canManageMeetings && showMOMUpload === mId && (
                       <div className="pt-3 border-t border-blue-300">
-                        <form onSubmit={(e) => handleUploadMOM(e, meeting._id)} className="space-y-3">
+                        <form onSubmit={(e) => handleUploadMOM(e, mId)} className="space-y-3">
                           <div>
                             <label className="block text-sm font-medium text-gray-700 mb-1">
                               Meeting Link (Optional)
@@ -453,26 +416,7 @@ export default function MeetingsPage() {
 
                           <div>
                             <label className="block text-sm font-medium text-gray-700 mb-1">
-                              Upload MOM Document (Optional)
-                            </label>
-                            <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:bg-gray-50 transition-colors cursor-pointer relative">
-                              <input
-                                type="file"
-                                onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
-                                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                              />
-                              <Upload className="mx-auto h-8 w-8 text-gray-400 mb-2" />
-                              {selectedFile ? (
-                                <p className="text-sm font-medium text-green-600">Selected: {selectedFile.name}</p>
-                              ) : (
-                                <p className="text-sm text-gray-500">Drag & drop your file here, or click to browse</p>
-                              )}
-                            </div>
-                          </div>
-
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
-                              Or paste a Link (Optional)
+                              Minutes Document Link (Optional)
                             </label>
                             <input
                               type="url"
@@ -503,10 +447,9 @@ export default function MeetingsPage() {
                           <div className="flex items-center gap-2">
                             <button
                               type="submit"
-                              disabled={isUploading}
-                              className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium text-sm disabled:bg-gray-400 disabled:cursor-not-allowed"
+                              className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium text-sm"
                             >
-                              {isUploading ? 'Saving...' : 'Save MOM'}
+                              Save MOM
                             </button>
                             <button
                               type="button"
@@ -520,7 +463,8 @@ export default function MeetingsPage() {
                       </div>
                     )}
                   </div>
-                ))}
+                  );
+                })}
               </div>
             </CardContent>
           </Card>
@@ -536,7 +480,7 @@ export default function MeetingsPage() {
               <div className="space-y-3">
                 {completed.map((meeting) => (
                   <div
-                    key={meeting._id}
+                    key={meeting.id || (meeting as any)._id}
                     className="p-4 rounded-lg bg-green-50 border border-green-200 space-y-3"
                   >
                     <div className="flex items-center justify-between">
@@ -557,7 +501,7 @@ export default function MeetingsPage() {
                         </span>
                         {canManageMeetings && (
                           <button
-                            onClick={() => handleDeleteMeeting(meeting._id, meeting.title)}
+                            onClick={() => handleDeleteMeeting(meeting.id || (meeting as any)._id, meeting.title)}
                             className="p-1 text-red-500 hover:text-red-700 hover:bg-red-50 rounded transition-colors"
                             title="Delete meeting"
                           >
@@ -590,9 +534,7 @@ export default function MeetingsPage() {
                       </div>
                     )}
 
-                    {meeting.minutesFile && (
-                      <MinutesFileLink storageId={meeting.minutesFile} />
-                    )}
+
 
                     {meeting.minutesUrl && (
                       <div className="pt-2 border-t border-green-200 mt-2">

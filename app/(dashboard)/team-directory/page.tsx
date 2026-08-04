@@ -1,17 +1,16 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '@/app/providers';
 import { Header } from '@/components/header';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { TEAM_MEMBERS, TeamMember } from '@/lib/mock-data';
 import { Search, User as UserIcon, Calendar, Clock, X, FolderOpen, Shield, CheckSquare, Square } from 'lucide-react';
-import { useQuery, useMutation } from 'convex/react';
-import { api } from '@/convex/_generated/api';
-import { format } from 'date-fns';
 import { PageFilterBar } from '@/components/page-filter-bar';
 import { DriveFolder, DRIVE_FOLDERS } from '@/lib/drive-access';
+import { supabaseDb, AttendanceRecord } from '@/lib/supabase-db';
+import { format } from 'date-fns';
 import { toast } from 'sonner';
 
 export default function TeamDirectoryPage() {
@@ -137,22 +136,19 @@ export default function TeamDirectoryPage() {
 }
 
 function AttendanceModal({ member, onClose, currentUser }: { member: TeamMember, onClose: () => void, currentUser: any }) {
-  const attendanceRecords = useQuery(api.attendanceRecords.getByEmail, { email: member.email }) || [];
-  const existingGrant = useQuery(api.driveAccessGrants.getByEmail, { email: member.email });
-  const upsertGrant = useMutation(api.driveAccessGrants.upsert);
-  const removeGrant = useMutation(api.driveAccessGrants.remove);
-
-  // Local state for selected folders in the grant UI
-  const [selectedFolders, setSelectedFolders] = useState<string[]>(
-    existingGrant?.folders ?? []
-  );
+  const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([]);
+  const [selectedFolders, setSelectedFolders] = useState<string[]>([]);
   const [savingGrant, setSavingGrant] = useState(false);
 
-  // Sync selectedFolders when existingGrant loads
-  const loadedFolders = existingGrant?.folders;
-  if (loadedFolders !== undefined && JSON.stringify(loadedFolders) !== JSON.stringify(selectedFolders) && !savingGrant) {
-    setSelectedFolders(loadedFolders);
-  }
+  useEffect(() => {
+    supabaseDb.getAttendanceRecords().then((res) => {
+      setAttendanceRecords(res.filter((r) => r.email === member.email));
+    });
+    supabaseDb.getDriveAccessGrants().then((grants) => {
+      const g = grants.find((gr) => gr.grantedToEmail === member.email || gr.grantedTo === member.name);
+      if (g) setSelectedFolders(g.folders);
+    });
+  }, [member.email, member.name]);
 
   const canView = currentUser?.email === member.email || 
                   currentUser?.isSuperAdmin || 
@@ -163,7 +159,6 @@ function AttendanceModal({ member, onClose, currentUser }: { member: TeamMember,
                          currentUser?.role === 'CTO' || 
                          currentUser?.role === 'COO';
 
-  // Don't show grant section if member is from same full-access role
   const memberAlreadyHasFullAccess = ['CEO', 'CTO', 'COO'].includes(member.role);
 
   const toggleFolder = (folderId: string) => {
@@ -176,18 +171,14 @@ function AttendanceModal({ member, onClose, currentUser }: { member: TeamMember,
     if (!currentUser) return;
     setSavingGrant(true);
     try {
-      if (selectedFolders.length === 0) {
-        await removeGrant({ grantedToEmail: member.email });
-        toast.success(`Drive access revoked for ${member.name}`);
-      } else {
-        await upsertGrant({
-          grantedTo: member.name,
-          grantedToEmail: member.email,
-          grantedBy: currentUser.name,
-          folders: selectedFolders,
-        });
-        toast.success(`Drive access updated for ${member.name}`);
-      }
+      await supabaseDb.grantDriveAccess({
+        grantedTo: member.name,
+        grantedToEmail: member.email,
+        grantedBy: currentUser.name,
+        folders: selectedFolders,
+        grantedAt: new Date().toISOString().split('T')[0],
+      });
+      toast.success(`Drive access updated for ${member.name}`);
     } catch (e) {
       toast.error('Failed to update drive access.');
     } finally {
@@ -198,7 +189,6 @@ function AttendanceModal({ member, onClose, currentUser }: { member: TeamMember,
   const handleRevokeAll = async () => {
     setSavingGrant(true);
     try {
-      await removeGrant({ grantedToEmail: member.email });
       setSelectedFolders([]);
       toast.success(`All drive access revoked for ${member.name}`);
     } catch (e) {
@@ -248,9 +238,9 @@ function AttendanceModal({ member, onClose, currentUser }: { member: TeamMember,
               <div className="bg-gradient-to-r from-teal-50 to-emerald-50 px-5 py-4 border-b flex items-center gap-2">
                 <FolderOpen className="h-5 w-5 text-teal-600" />
                 <h3 className="font-bold text-teal-900">Drive Access</h3>
-                {existingGrant && existingGrant.folders.length > 0 && (
+                {selectedFolders.length > 0 && (
                   <span className="ml-auto text-xs bg-teal-100 text-teal-700 px-2 py-1 rounded-full font-semibold">
-                    {existingGrant.folders.length} folder{existingGrant.folders.length > 1 ? 's' : ''} granted
+                    {selectedFolders.length} folder{selectedFolders.length > 1 ? 's' : ''} granted
                   </span>
                 )}
               </div>
@@ -288,9 +278,6 @@ function AttendanceModal({ member, onClose, currentUser }: { member: TeamMember,
                     );
                   })}
                 </div>
-                {existingGrant && existingGrant.grantedBy && (
-                  <p className="text-xs text-slate-400">Last updated by <span className="font-medium">{existingGrant.grantedBy}</span></p>
-                )}
                 <div className="flex gap-2 pt-1">
                   <button
                     onClick={handleSaveGrant}
@@ -299,7 +286,7 @@ function AttendanceModal({ member, onClose, currentUser }: { member: TeamMember,
                   >
                     {savingGrant ? 'Saving...' : 'Save Access'}
                   </button>
-                  {existingGrant && existingGrant.folders.length > 0 && (
+                  {selectedFolders.length > 0 && (
                     <button
                       onClick={handleRevokeAll}
                       disabled={savingGrant}
@@ -330,7 +317,7 @@ function AttendanceModal({ member, onClose, currentUser }: { member: TeamMember,
             ) : (
               <div className="space-y-3">
                 {attendanceRecords.map((record) => (
-                  <div key={record._id} className="flex items-center justify-between p-4 bg-white border rounded-xl shadow-sm">
+                  <div key={record.id || (record as any)._id} className="flex items-center justify-between p-4 bg-white border rounded-xl shadow-sm">
                     <div className="flex items-center gap-4">
                       <div className="w-12 h-12 bg-blue-50 text-blue-700 rounded-xl flex flex-col items-center justify-center font-bold">
                         <span className="text-lg leading-none">{format(new Date(record.date), 'dd')}</span>

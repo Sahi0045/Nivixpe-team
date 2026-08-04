@@ -1,10 +1,10 @@
 'use client';
 
 import { Header } from '@/components/header';
-import { useQuery, useMutation } from 'convex/react';
-import { api } from '@/convex/_generated/api';
 import { useAuth } from '@/app/providers';
 import { useState, useEffect, useCallback } from 'react';
+import { supabaseDb, AttendanceRecord, LeaveRequest, TeamMember } from '@/lib/supabase-db';
+import { TEAM_MEMBERS } from '@/lib/mock-data';
 import {
   CheckCircle,
   Clock,
@@ -39,15 +39,24 @@ export default function AttendancePage() {
 
   const today = new Date().toISOString().split('T')[0];
 
-  /* ── Live queries ── */
-  const todayAttendance = useQuery(api.attendanceRecords.getByDate, { date: today }) || [];
-  const myAttendance = todayAttendance.find(a => a.email === user?.email);
-  const activeLeavesToday = useQuery(api.leaveRequests.getActiveLeavesToday, { date: today }) || [];
-  const allMembers = useQuery(api.teamMembers.getAll) || [];
+  const [todayAttendance, setTodayAttendance] = useState<AttendanceRecord[]>([]);
+  const [activeLeavesToday, setActiveLeavesToday] = useState<LeaveRequest[]>([]);
+  const [allMembers, setAllMembers] = useState<TeamMember[]>(TEAM_MEMBERS as any);
 
-  /* ── Mutations ── */
-  const markAttendance = useMutation(api.attendanceRecords.create);
-  const updateAttendance = useMutation(api.attendanceRecords.update);
+  const loadData = async () => {
+    const records = await supabaseDb.getAttendanceRecords();
+    const leaves = await supabaseDb.getLeaveRequests();
+    const members = await supabaseDb.getTeamMembers();
+    setTodayAttendance(records.filter((a) => a.date === today));
+    setActiveLeavesToday(leaves.filter((l) => l.status === 'approved' && l.startDate <= today && l.endDate >= today));
+    setAllMembers(members as any);
+  };
+
+  useEffect(() => {
+    loadData();
+  }, [today]);
+
+  const myAttendance = todayAttendance.find(a => a.email === user?.email);
 
   /* ── Tick every second ── */
   useEffect(() => {
@@ -62,8 +71,8 @@ export default function AttendancePage() {
   const getLiveWorkStats = useCallback(() => {
     if (!myAttendance) return { sessionMins: 0, totalMins: 0, isActive: false };
     const accumulated = myAttendance.workHours || 0;
-    const activeStart = myAttendance.currentSessionStart;
-    if (activeStart && !myAttendance.isPaused) {
+    const activeStart = (myAttendance as any).currentSessionStart;
+    if (activeStart && !(myAttendance as any).isPaused) {
       const [startH, startM] = activeStart.split(':').map(Number);
       const n = new Date();
       let start = startH * 60 + startM;
@@ -93,8 +102,9 @@ export default function AttendancePage() {
     if (!user) return;
     const loginTime = new Date().toTimeString().split(' ')[0].substring(0, 5);
     try {
-      await markAttendance({ date: today, email: user.email, loginTime, status: 'present', workHours: 0 });
-      toast.success(myAttendance?.isPaused ? 'Work session resumed!' : `Logged in at ${loginTime}. Minimum 4h required.`);
+      await supabaseDb.markAttendance({ date: today, email: user.email, loginTime, status: 'present' });
+      await loadData();
+      toast.success(`Logged in at ${loginTime}. Minimum 4h required.`);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to log in.');
     }
@@ -103,20 +113,10 @@ export default function AttendancePage() {
   const handleMarkLogout = async () => {
     if (!user || !myAttendance) return;
     const logoutTime = new Date().toTimeString().split(' ')[0].substring(0, 5);
-    const sessionStart = myAttendance.currentSessionStart || myAttendance.loginTime || '00:00';
-    const [sh, sm] = sessionStart.split(':').map(Number);
-    const [eh, em] = logoutTime.split(':').map(Number);
-    let s = sh * 60 + sm, e = eh * 60 + em;
-    if (e < s) e += 1440;
-    const total = (myAttendance.workHours || 0) + Math.max(0, e - s);
-    const wh = Math.floor(total / 60), wm = total % 60;
     try {
-      await updateAttendance({ id: myAttendance._id, logoutTime });
-      if (total < 240) {
-        toast.warning(`Paused at ${logoutTime} — ${wh}h ${wm}m total. Below 4h minimum!`, { duration: 6000 });
-      } else {
-        toast.success(`Paused at ${logoutTime} — ${wh}h ${wm}m total. 4h requirement met!`, { duration: 6000 });
-      }
+      await supabaseDb.markAttendance({ ...myAttendance, logoutTime });
+      await loadData();
+      toast.success(`Logged out at ${logoutTime}.`);
     } catch {
       toast.error('Failed to log out.');
     }
@@ -124,7 +124,8 @@ export default function AttendancePage() {
 
   /* ── Filtered table data ── */
   const filteredAttendance = todayAttendance.filter(r => {
-    const matchSearch = r.email.toLowerCase().includes(searchTerm.toLowerCase());
+    const memberName = TEAM_MEMBERS.find(m => m.email === r.email)?.name || r.email;
+    const matchSearch = r.email.toLowerCase().includes(searchTerm.toLowerCase()) || memberName.toLowerCase().includes(searchTerm.toLowerCase());
     const matchStatus = statusFilter === 'all' || r.status === statusFilter;
     return matchSearch && matchStatus;
   });
@@ -387,7 +388,7 @@ export default function AttendancePage() {
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                 {activeLeavesToday.map(leave => (
-                  <div key={leave._id} className="flex items-center gap-3 bg-blue-50 border border-blue-100 rounded-xl p-3">
+                  <div key={leave.id || (leave as any)._id} className="flex items-center gap-3 bg-blue-50 border border-blue-100 rounded-xl p-3">
                     <div className="w-8 h-8 rounded-full bg-blue-200 flex items-center justify-center text-blue-700 text-xs font-bold flex-shrink-0">
                       {leave.employeeName?.charAt(0) || '?'}
                     </div>
@@ -484,15 +485,16 @@ export default function AttendancePage() {
                     filteredAttendance.map(record => {
                       const mins = liveMinutes(record);
                       const isSufficient = mins >= 240;
-                      const isActiveRow = record.currentSessionStart && !record.isPaused;
+                      const isActiveRow = (record as any).currentSessionStart && !(record as any).isPaused;
+                      const memberName = TEAM_MEMBERS.find(m => m.email === record.email)?.name || record.email;
                       return (
-                        <tr key={record._id}>
+                        <tr key={record.email + record.date}>
                           <td>
                             <div className="flex items-center gap-3">
                               <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-bold text-xs flex-shrink-0">
-                                {record.email.charAt(0).toUpperCase()}
+                                {memberName.charAt(0).toUpperCase()}
                               </div>
-                              <span className="font-medium text-slate-700 truncate max-w-[180px]">{record.email}</span>
+                              <span className="font-medium text-slate-700 truncate max-w-[180px]">{memberName}</span>
                             </div>
                           </td>
                           <td>{statusBadge(record)}</td>

@@ -49,12 +49,12 @@ export function LoginForm() {
           )}
           <div className="space-y-2">
             <label htmlFor="email" className="text-sm font-medium">
-              Email
+              Name or Email
             </label>
             <Input
               id="email"
-              type="email"
-              placeholder="you@nivixpe.com"
+              type="text"
+              placeholder="Sahith or ceo@nivixpe.com"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               disabled={isLoading}

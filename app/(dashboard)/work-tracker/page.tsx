@@ -9,9 +9,7 @@ import { canAssignTasks, getAssignableMembers, getVisibleTasks, canDeleteAllocat
 import { confirmDelete } from '@/lib/confirm-delete';
 import { CheckCircle, Clock, AlertCircle, Shield, Users, RefreshCw, User, Plus, X, FileCheck, AlertTriangle, Edit } from 'lucide-react';
 import { useState, useMemo, useEffect, Suspense } from 'react';
-import { useQuery, useMutation } from 'convex/react';
-import { api } from '@/convex/_generated/api';
-import { Id } from '@/convex/_generated/dataModel';
+import { supabaseDb, WorkTask, ProofOfWorkRecord } from '@/lib/supabase-db';
 import { ProofSubmissionForm } from '@/components/proof-submission-form';
 import { toast } from 'sonner';
 import { useSearchParams } from 'next/navigation';
@@ -57,13 +55,26 @@ function WorkTrackerContent() {
   const [showEditTaskModal, setShowEditTaskModal] = useState(false);
   const [editingTask, setEditingTask] = useState<any>(null);
   
-  const [proofTask, setProofTask] = useState<{ id: Id<'workTasks'>; title: string } | null>(null);
+  const [proofTask, setProofTask] = useState<{ id: string; title: string } | null>(null);
   const [selectedAssignee, setSelectedAssignee] = useState('');
   
   const [filterTeam, setFilterTeam] = useState('all');
   const [filterPerson, setFilterPerson] = useState('all');
   const [showCompletedTasks, setShowCompletedTasks] = useState(false);
-  
+
+  const [allTasks, setAllTasks] = useState<WorkTask[]>([]);
+  const [allProofOfWork, setAllProofOfWork] = useState<ProofOfWorkRecord[]>([]);
+
+  const loadData = async () => {
+    const tasks = await supabaseDb.getWorkTasks();
+    const pow = await supabaseDb.getProofOfWork();
+    setAllTasks(tasks);
+    setAllProofOfWork(pow);
+  };
+
+  useEffect(() => {
+    loadData();
+  }, []);
 
   useEffect(() => {
     if (queryUser) {
@@ -84,15 +95,35 @@ function WorkTrackerContent() {
     comments: '',
     coordinationWith: '',
   });
-  
-  const allTasks = useQuery(api.workTasks.getAll) || [];
-  const createTask = useMutation(api.workTasks.create);
-  const updateTask = useMutation(api.workTasks.update);
-  const deleteTask = useMutation(api.workTasks.remove);
-  
-  const allProofOfWork = useQuery(api.proofOfWork.getAll) || [];
-  const myAssignedTasks =
-    useQuery(api.workTasks.getByAssignee, user ? { assignee: user.name } : 'skip') || [];
+
+  const myAssignedTasks = allTasks.filter((t) => t.assignee === user?.name);
+
+  const handleMarkAsDone = async (taskId: string) => {
+    try {
+      await supabaseDb.updateTask(taskId, {
+        status: 'completed',
+        completedDate: new Date().toISOString().split('T')[0],
+      });
+      await loadData();
+      toast.success('Task marked as completed!');
+    } catch (error) {
+      console.error('Error updating task:', error);
+      toast.error('Failed to update task status.');
+    }
+  };
+
+  const handleDeleteTask = async (taskId: string, task: any) => {
+    if (!canDeleteAllocatedTask(user, task)) return;
+    if (!(await confirmDelete('task', task.title))) return;
+    try {
+      await supabaseDb.deleteTask(taskId);
+      await loadData();
+      toast.success('Task deleted successfully!');
+    } catch (error) {
+      console.error('Error deleting task:', error);
+      toast.error('Failed to delete task.');
+    }
+  };
   
   const activeTeamMembers = TEAM_MEMBERS.filter(m => m.status !== 'inactive' && !['Abhiram', 'Rudra Sahu'].includes(m.name));
   const hiddenAssignees = ['Abhiram', 'Rudra Sahu'];
@@ -128,32 +159,6 @@ function WorkTrackerContent() {
   const allContinuous = visibleTasks.filter((t) => t.status === 'continuous');
   const allMissed = visibleTasks.filter((t) => t.status === 'missed');
   const allOverdue = visibleTasks.filter((t) => isOverdue(t));
-
-  const handleMarkAsDone = async (taskId: any) => {
-    try {
-      await updateTask({
-        id: taskId,
-        status: 'completed',
-        completedDate: new Date().toISOString().split('T')[0],
-      });
-      toast.success('Task marked as completed!');
-    } catch (error) {
-      console.error('Error updating task:', error);
-      toast.error('Failed to update task status.');
-    }
-  };
-
-  const handleDeleteTask = async (taskId: any, task: any) => {
-    if (!canDeleteAllocatedTask(user, task)) return;
-    if (!(await confirmDelete('task', task.title))) return;
-    try {
-      await deleteTask({ id: taskId });
-      toast.success('Task deleted successfully!');
-    } catch (error) {
-      console.error('Error deleting task:', error);
-      toast.error('Failed to delete task.');
-    }
-  };
 
   const getTaskPoW = (task: any) => {
     // Return the most recent PoW for this task
@@ -269,7 +274,7 @@ function WorkTrackerContent() {
                     const status = getStatusDisplay(task);
                     const overdueTask = isOverdue(task);
                     return (
-                      <tr key={task._id} className={`border-b hover:bg-muted/50 ${overdueTask ? 'bg-red-50/50' : ''}`}>
+                      <tr key={task.id || (task as any)._id} className={`border-b hover:bg-muted/50 ${overdueTask ? 'bg-red-50/50' : ''}`}>
                         <td className="p-3">
                           <p className="font-medium">{task.title}</p>
                           {task.dueDate && task.dueDate !== 'Ongoing' && (
@@ -329,7 +334,7 @@ function WorkTrackerContent() {
                                 return (
                                     <button
                                       onClick={() => {
-                                        setProofTask({ id: task._id, title: task.title });
+                                        setProofTask({ id: task.id || (task as any)._id, title: task.title });
                                       }}
                                       className="inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-medium py-2.5 px-5 rounded-full transition-all shadow-md hover:shadow-lg text-sm border-none outline-none"
                                       title={
@@ -602,8 +607,7 @@ function WorkTrackerContent() {
 
                       try {
                         if (showEditTaskModal && editingTask) {
-                          await updateTask({
-                            id: editingTask._id,
+                          await supabaseDb.updateTask(editingTask.id || editingTask._id, {
                             title: taskForm.title.trim(),
                             dueDate: taskForm.dueDate,
                             priority: taskForm.priority,
@@ -611,12 +615,13 @@ function WorkTrackerContent() {
                           });
                           setShowEditTaskModal(false);
                           setEditingTask(null);
+                          await loadData();
                           toast.success('Task updated successfully!');
                         } else {
                           const assigneeMember = TEAM_MEMBERS.find(m => m.name === selectedAssignee);
                           if (!assigneeMember) return toast.error('Invalid assignee');
 
-                          await createTask({
+                          await supabaseDb.createTask({
                             title: taskForm.title.trim(),
                             assignee: selectedAssignee,
                             assigneeRole: assigneeMember.role,
@@ -625,11 +630,11 @@ function WorkTrackerContent() {
                             priority: taskForm.priority,
                             comments: taskForm.comments.trim(),
                             coordinationWith: taskForm.coordinationWith || undefined,
-                            createdBy: user?.name || 'Unknown',
                             owner: user?.name,
                           });
                           
                           setShowAddTaskModal(false);
+                          await loadData();
                           toast.success('Task created successfully!');
                         }
                       } catch (error) {
@@ -659,18 +664,18 @@ function WorkTrackerContent() {
               <CardContent>
                 <ProofSubmissionForm
                   user={{ name: user.name, email: user.email }}
-                  tasks={myAssignedTasks.map((t) => ({ _id: t._id, title: t.title }))}
+                  tasks={myAssignedTasks.map((t) => ({ id: t.id, title: t.title }))}
                   initialTaskId={proofTask.id}
                   initialTaskTitle={proofTask.title}
                   onSuccess={async () => {
                     const taskId = proofTask.id;
                     setProofTask(null);
                     try {
-                      await updateTask({
-                        id: taskId,
+                      await supabaseDb.updateTask(taskId, {
                         status: 'completed',
                         completedDate: new Date().toISOString().split('T')[0],
                       });
+                      await loadData();
                       toast.success('Proof submitted and task marked as completed!');
                     } catch (error) {
                       toast.warning('Proof submitted successfully! Please click Mark as Done again.');

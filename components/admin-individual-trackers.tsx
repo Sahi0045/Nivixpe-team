@@ -21,7 +21,8 @@ import {
 import { cn } from '@/lib/utils';
 
 interface TeamMember {
-  _id: string;
+  _id?: string;
+  id?: string;
   name: string;
   email: string;
   role: string;

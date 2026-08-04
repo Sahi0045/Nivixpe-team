@@ -2,12 +2,19 @@
 
 import { Header } from '@/components/header'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { WORK_TASKS } from '@/lib/mock-data'
 import { CheckCircle, Clock, AlertCircle } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { supabaseDb, WorkTask } from '@/lib/supabase-db'
 
 export default function UjjwalTrackerPage() {
+  const [tasks, setTasks] = useState<WorkTask[]>([])
+
+  useEffect(() => {
+    supabaseDb.getWorkTasks().then(setTasks)
+  }, [])
+
   // Filter tasks assigned to Ujjwal
-  const ujjwalTasks = WORK_TASKS.filter((t) => t.assignee === 'Ujjwal')
+  const ujjwalTasks = tasks.filter((t) => t.assignee === 'Ujjwal')
   const completed = ujjwalTasks.filter((t) => t.status === 'completed')
   const ongoing = ujjwalTasks.filter((t) => t.status === 'ongoing')
   const missed = ujjwalTasks.filter((t) => t.status === 'missed')

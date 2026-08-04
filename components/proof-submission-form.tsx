@@ -1,22 +1,21 @@
 'use client';
 
 import { useState } from 'react';
-import { FileDropzone, uploadFileToConvex } from '@/components/file-dropzone';
+import { FileDropzone } from '@/components/file-dropzone';
 import { validateFileSize } from '@/lib/file-upload';
 import { FileText, Link as LinkIcon, Plus, Trash2, Upload } from 'lucide-react';
-import { useMutation } from 'convex/react';
-import { api } from '@/convex/_generated/api';
-import { Id } from '@/convex/_generated/dataModel';
+import { supabaseDb } from '@/lib/supabase-db';
 
 export type ProofTaskOption = {
-  _id: Id<'workTasks'>;
+  id: string;
+  _id?: string;
   title: string;
 };
 
 type ProofSubmissionFormProps = {
   user: { name: string; email: string };
   tasks: ProofTaskOption[];
-  initialTaskId?: Id<'workTasks'> | '';
+  initialTaskId?: string;
   initialTaskTitle?: string;
   onSuccess?: () => void;
   onCancel?: () => void;
@@ -38,9 +37,6 @@ export function ProofSubmissionForm({
   const [taskTitle, setTaskTitle] = useState(initialTaskTitle);
   const [workDescription, setWorkDescription] = useState('');
   const [proofLinks, setProofLinks] = useState<string[]>(['']);
-
-  const generateUploadUrl = useMutation(api.files.generateUploadUrl);
-  const createProofOfWork = useMutation(api.proofOfWork.create);
 
   const normalizedLinks = proofLinks.map((l) => l.trim()).filter(Boolean);
   const hasProofAttachment = Boolean(proofFile) || normalizedLinks.length > 0;
@@ -78,21 +74,16 @@ export function ProofSubmissionForm({
         }
       }
 
-      let storageId: Id<'_storage'> | undefined;
-      if (proofFile) {
-        storageId = (await uploadFileToConvex(proofFile, generateUploadUrl)) as Id<'_storage'>;
-      }
-
-      await createProofOfWork({
-        taskId: taskId && taskId !== 'Other' ? (taskId as Id<'workTasks'>) : undefined,
+      await supabaseDb.submitProofOfWork({
+        taskId: taskId && taskId !== 'Other' ? taskId : undefined,
         taskTitle: taskTitle.trim(),
         submittedBy: user.name,
         submittedByEmail: user.email,
-        submissionDate: new Date().toISOString().split('T')[0],
+        submissionDate: new Date().toISOString().replace('T', ' ').substring(0, 16),
         workDescription: workDescription.trim(),
         proofLinks: normalizedLinks.length > 0 ? normalizedLinks : undefined,
         proofLink: normalizedLinks[0],
-        proofFile: storageId,
+        fileSize: proofFile ? proofFile.size : undefined,
         status: 'submitted',
       });
 

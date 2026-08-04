@@ -2,23 +2,27 @@
 
 import { Header } from '@/components/header';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { useQuery, useMutation } from 'convex/react';
-import { api } from '@/convex/_generated/api';
 import { CheckCircle, AlertCircle, Clock, Info, Plus } from 'lucide-react';
 import { useAuth } from '@/app/providers';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { supabaseDb, LeaveRequest } from '@/lib/supabase-db';
 import { toast } from 'sonner';
 
 export default function LeaveManagementPage() {
   const { user } = useAuth();
   
-  // Real-time queries
-  const allLeaveRequests = useQuery(api.leaveRequests.getAll) || [];
-  const myLeaveRequests = useQuery(api.leaveRequests.getByEmail, user ? { email: user.email } : "skip") || [];
-  
-  // Mutations
-  const updateLeaveStatus = useMutation(api.leaveRequests.updateStatus);
-  const createLeaveRequest = useMutation(api.leaveRequests.create);
+  const [allLeaveRequests, setAllLeaveRequests] = useState<LeaveRequest[]>([]);
+
+  const loadData = async () => {
+    const res = await supabaseDb.getLeaveRequests();
+    setAllLeaveRequests(res);
+  };
+
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  const myLeaveRequests = allLeaveRequests.filter((l) => l.employeeEmail === user?.email || l.employeeName === user?.name);
   
   // Form state
   const [showRequestForm, setShowRequestForm] = useState(false);
@@ -29,7 +33,7 @@ export default function LeaveManagementPage() {
     type: 'vacation' as 'vacation' | 'sick' | 'personal',
   });
   
-  // 4 heads can approve/reject: CEO (Sahith), CTO (Shubham), CSO (Swaraag), COO (Siddhartha) — CMO account disabled
+  // 4 heads can approve/reject: CEO (Sahith), CTO (Shubham), CSO (Swaraag), COO (Siddhartha)
   const canApproveLeave = user?.isSuperAdmin || user?.role === 'CTO' || user?.role === 'CSO' || user?.role === 'COO';
   
   const hiddenMembers = ['Abhiram', 'Rudra Sahu'];
@@ -57,14 +61,11 @@ export default function LeaveManagementPage() {
   const pending = filteredRequests.filter((lr) => lr.status === 'pending');
   const rejected = filteredRequests.filter((lr) => lr.status === 'rejected');
 
-  const handleApprove = async (requestId: any) => {
+  const handleApprove = async (requestId: string) => {
     if (!canApproveLeave || !user) return;
     try {
-      await updateLeaveStatus({
-        id: requestId,
-        status: 'approved',
-        approvedBy: user.name,
-      });
+      await supabaseDb.updateLeaveStatus(requestId, 'approved');
+      await loadData();
       toast.success('Leave approved successfully');
     } catch (error) {
       console.error('Error approving leave:', error);
@@ -72,14 +73,11 @@ export default function LeaveManagementPage() {
     }
   };
 
-  const handleReject = async (requestId: any) => {
+  const handleReject = async (requestId: string) => {
     if (!canApproveLeave || !user) return;
     try {
-      await updateLeaveStatus({
-        id: requestId,
-        status: 'rejected',
-        approvedBy: user.name,
-      });
+      await supabaseDb.updateLeaveStatus(requestId, 'rejected');
+      await loadData();
       toast.success('Leave rejected successfully');
     } catch (error) {
       console.error('Error rejecting leave:', error);
@@ -92,15 +90,16 @@ export default function LeaveManagementPage() {
     if (!user) return;
     
     try {
-      await createLeaveRequest({
+      await supabaseDb.createLeaveRequest({
         employeeName: user.name,
         employeeEmail: user.email,
         startDate: formData.startDate,
         endDate: formData.endDate,
         reason: formData.reason,
-        status: 'pending',
         type: formData.type,
+        status: 'pending',
       });
+      await loadData();
       
       // Reset form and close modal
       setFormData({
@@ -378,7 +377,7 @@ export default function LeaveManagementPage() {
               <div className="space-y-3">
                 {pending.map((request) => (
                   <div
-                    key={request._id}
+                    key={request.id || (request as any)._id}
                     className="p-4 rounded-lg bg-yellow-50 border border-yellow-200 space-y-2"
                   >
                     <div className="flex items-center justify-between">
@@ -399,13 +398,13 @@ export default function LeaveManagementPage() {
                         {canApproveLeave ? (
                           <>
                             <button 
-                              onClick={() => handleApprove(request._id)}
+                              onClick={() => handleApprove(request.id || (request as any)._id)}
                               className="btn-success py-1.5 px-4 text-xs"
                             >
                               Approve
                             </button>
                             <button 
-                              onClick={() => handleReject(request._id)}
+                              onClick={() => handleReject(request.id || (request as any)._id)}
                               className="btn-danger py-1.5 px-4 text-xs"
                             >
                               Reject
@@ -435,7 +434,7 @@ export default function LeaveManagementPage() {
               <div className="space-y-3">
                 {approved.map((request) => (
                   <div
-                    key={request._id}
+                    key={request.id || (request as any)._id}
                     className="p-4 rounded-lg bg-green-50 border border-green-200 space-y-2"
                   >
                     <div className="flex items-center justify-between">
@@ -478,7 +477,7 @@ export default function LeaveManagementPage() {
               <div className="space-y-3">
                 {rejected.map((request) => (
                   <div
-                    key={request._id}
+                    key={request.id || (request as any)._id}
                     className="p-4 rounded-lg bg-red-50 border border-red-200 space-y-2"
                   >
                     <div className="flex items-center justify-between">

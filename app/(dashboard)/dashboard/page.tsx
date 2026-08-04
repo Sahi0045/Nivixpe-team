@@ -3,8 +3,8 @@
 import { useAuth } from '@/app/providers';
 import { Header } from '@/components/header';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { useQuery } from 'convex/react';
-import { api } from '@/convex/_generated/api';
+import { useState, useEffect } from 'react';
+import { supabaseDb, WorkTask, AttendanceRecord, ProofOfWorkRecord, Meeting } from '@/lib/supabase-db';
 import { TEAM_MEMBERS } from '@/lib/mock-data';
 import { KPICard } from '@/components/kpi-card';
 import { ActivityFeed } from '@/components/activity-feed';
@@ -16,10 +16,24 @@ export default function DashboardPage() {
   const router = useRouter();
   const today = new Date().toISOString().split('T')[0];
 
-  const allTasks = useQuery(api.workTasks.getAll) || [];
-  const attendanceRecords = useQuery(api.attendanceRecords.getByDate, { date: today }) || [];
-  const allProofOfWork = useQuery(api.proofOfWork.getAll) || [];
-  const meetings = useQuery(api.meetings.getAll) || [];
+  const [allTasks, setAllTasks] = useState<WorkTask[]>([]);
+  const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([]);
+  const [allProofOfWork, setAllProofOfWork] = useState<ProofOfWorkRecord[]>([]);
+  const [meetings, setMeetings] = useState<Meeting[]>([]);
+
+  useEffect(() => {
+    Promise.all([
+      supabaseDb.getWorkTasks(),
+      supabaseDb.getAttendanceRecords(),
+      supabaseDb.getProofOfWork(),
+      supabaseDb.getMeetings(),
+    ]).then(([t, a, p, m]) => {
+      setAllTasks(t);
+      setAttendanceRecords(a.filter((r) => r.date === today));
+      setAllProofOfWork(p);
+      setMeetings(m);
+    });
+  }, [today]);
 
   // KPI Calculations
   const presentToday = attendanceRecords.filter((a) => a.status === 'present').length;
@@ -36,7 +50,7 @@ export default function DashboardPage() {
   
   allTasks.filter(t => !hiddenMembers.includes(t.assignee)).slice(0, 5).forEach(task => {
     activities.push({
-      id: `task-${task._id}`,
+      id: `task-${task.id || (task as any)._id}`,
       user: task.assignee,
       action: `was assigned a new task: ${task.title}`,
       timestamp: task.dueDate || 'Recently',
@@ -46,7 +60,7 @@ export default function DashboardPage() {
 
   allProofOfWork.slice(0, 5).forEach(pow => {
     activities.push({
-      id: `pow-${pow._id}`,
+      id: `pow-${pow.id || (pow as any)._id}`,
       user: pow.submittedBy,
       action: `submitted proof of work for "${pow.taskTitle}"`,
       timestamp: pow.submissionDate,
@@ -55,10 +69,11 @@ export default function DashboardPage() {
   });
 
   attendanceRecords.slice(0, 5).forEach(record => {
+    const memberName = TEAM_MEMBERS.find(m => m.email === record.email)?.name || record.email;
     activities.push({
-      id: `att-${record._id}`,
-      user: record.email,
-      action: `checked in at ${record.loginTime}`,
+      id: `att-${record.email}-${record.date}`,
+      user: memberName,
+      action: `checked in at ${record.loginTime || '09:00 AM'}`,
       timestamp: today,
       icon: <Clock className="h-4 w-4" />
     });
@@ -163,7 +178,7 @@ export default function DashboardPage() {
               <CardContent>
                 <div className="space-y-4">
                   {upcomingMeetings.length > 0 ? upcomingMeetings.map(meeting => (
-                    <div key={meeting._id} className="flex items-start gap-3">
+                    <div key={meeting.id || (meeting as any)._id} className="flex items-start gap-3">
                       <div className="bg-slate-100 p-2 rounded-md border border-slate-200">
                         <Calendar className="w-4 h-4 text-slate-600" />
                       </div>

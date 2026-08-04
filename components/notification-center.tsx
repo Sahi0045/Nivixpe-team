@@ -1,11 +1,10 @@
 'use client';
 
-import { useQuery, useMutation } from 'convex/react';
-import { api } from '@/convex/_generated/api';
 import { useAuth } from '@/app/providers';
 import { useState, useRef, useEffect } from 'react';
 import { Bell, Check, Clock, Briefcase, Calendar, CheckCircle } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import { supabaseDb, NotificationRecord } from '@/lib/supabase-db';
 
 export function NotificationCenter() {
   const { user } = useAuth();
@@ -13,11 +12,15 @@ export function NotificationCenter() {
   const [isOpen, setIsOpen] = useState(false);
   const popoverRef = useRef<HTMLDivElement>(null);
 
-  const notifications = useQuery(api.notifications.get, user ? { userId: user.email } : "skip") || [];
-  const markAsRead = useMutation(api.notifications.markAsRead);
-  const markAllAsRead = useMutation(api.notifications.markAllAsRead);
+  const [notifications, setNotifications] = useState<NotificationRecord[]>([]);
 
-  const unreadCount = notifications.filter(n => !n.isRead).length;
+  useEffect(() => {
+    if (user?.name) {
+      supabaseDb.getNotifications(user.name).then(setNotifications);
+    }
+  }, [user?.name, isOpen]);
+
+  const unreadCount = notifications.filter((n) => !n.isRead).length;
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -25,13 +28,16 @@ export function NotificationCenter() {
         setIsOpen(false);
       }
     }
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const handleNotificationClick = async (notification: any) => {
+  const handleNotificationClick = async (notification: NotificationRecord) => {
     if (!notification.isRead) {
-      await markAsRead({ id: notification._id });
+      await supabaseDb.markNotificationRead(notification.id);
+      setNotifications((prev) =>
+        prev.map((n) => (n.id === notification.id ? { ...n, isRead: true } : n))
+      );
     }
     if (notification.link) {
       router.push(notification.link);
@@ -41,9 +47,12 @@ export function NotificationCenter() {
 
   const handleMarkAllRead = async (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (user?.email) {
-      await markAllAsRead({ userId: user.email });
+    for (const n of notifications) {
+      if (!n.isRead) {
+        await supabaseDb.markNotificationRead(n.id);
+      }
     }
+    setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
   };
 
   const getIcon = (type: string) => {
@@ -93,7 +102,7 @@ export function NotificationCenter() {
             ) : (
               notifications.map((notif) => (
                 <div 
-                  key={notif._id}
+                  key={notif.id}
                   onClick={() => handleNotificationClick(notif)}
                   className={`p-3 rounded-md cursor-pointer transition-colors flex gap-3 ${
                     notif.isRead ? 'bg-white hover:bg-slate-50' : 'bg-indigo-50/50 hover:bg-indigo-50 border border-indigo-100/50'

@@ -5,12 +5,11 @@ import { useRouter } from 'next/navigation'
 import { Header } from '@/components/header'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { PageFilterBar } from '@/components/page-filter-bar'
-import { useQuery } from 'convex/react'
-import { api } from '@/convex/_generated/api'
 import { TEAM_MEMBERS } from '@/lib/mock-data'
 import { Shield, Plus } from 'lucide-react'
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { canAssignTasks } from '@/lib/rbac'
+import { supabaseDb, WorkTask } from '@/lib/supabase-db'
 
 export default function WorkAllocationPage() {
   const { user } = useAuth()
@@ -18,8 +17,11 @@ export default function WorkAllocationPage() {
   const [filterTeam, setFilterTeam] = useState('all')
   const [filterPerson, setFilterPerson] = useState('all')
   
-  // Real-time queries
-  const allTasks = useQuery(api.workTasks.getAll) || []
+  const [allTasks, setAllTasks] = useState<WorkTask[]>([])
+
+  useEffect(() => {
+    supabaseDb.getWorkTasks().then(setAllTasks)
+  }, [])
   
   // RBAC: Filter team members based on user role
   const getVisibleMembers = () => {

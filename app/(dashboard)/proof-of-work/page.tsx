@@ -3,9 +3,6 @@
 import { Header } from '@/components/header';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAuth } from '@/app/providers';
-import { useQuery, useMutation } from 'convex/react';
-import { api } from '@/convex/_generated/api';
-import { Id } from '@/convex/_generated/dataModel';
 import {
   Briefcase,
   CheckCircle,
@@ -15,28 +12,14 @@ import {
   ExternalLink,
   FileText,
   Link as LinkIcon,
+  User,
 } from 'lucide-react';
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
+import { supabaseDb, ProofOfWorkRecord, WorkTask } from '@/lib/supabase-db';
 import { TEAM_MEMBERS } from '@/lib/mock-data';
 import { canViewTeamTasks, canAssignTasks, canApprovePoW } from '@/lib/rbac';
 import { ProofSubmissionForm } from '@/components/proof-submission-form';
-import { User } from 'lucide-react';
-
-function ProofFileLink({ storageId }: { storageId: Id<'_storage'> }) {
-  const url = useQuery(api.files.getFileUrl, { storageId });
-  if (!url) return null;
-  return (
-    <a
-      href={url}
-      target="_blank"
-      rel="noopener noreferrer"
-      className="text-sm text-blue-600 hover:underline inline-flex items-center gap-1"
-    >
-      <FileText className="h-3 w-3" />
-      View uploaded file
-    </a>
-  );
-}
+import { toast } from 'sonner';
 
 function ProofLinksList({
   proofLinks,
@@ -79,10 +62,19 @@ export default function ProofOfWorkPage() {
   const [filterPerson, setFilterPerson] = useState('all');
   const [filterStatus, setFilterStatus] = useState('all');
 
-  const allProofOfWork = useQuery(api.proofOfWork.getAll) || [];
-  const updateStatus = useMutation(api.proofOfWork.updateStatus);
-  const myTasks =
-    useQuery(api.workTasks.getByAssignee, user ? { assignee: user.name } : 'skip') || [];
+  const [allProofOfWork, setAllProofOfWork] = useState<ProofOfWorkRecord[]>([]);
+  const [myTasks, setMyTasks] = useState<WorkTask[]>([]);
+
+  const loadData = async () => {
+    const pow = await supabaseDb.getProofOfWork();
+    const tasks = await supabaseDb.getWorkTasks();
+    setAllProofOfWork(pow);
+    setMyTasks(tasks.filter((t) => t.assignee === user?.name));
+  };
+
+  useEffect(() => {
+    loadData();
+  }, [user?.name]);
 
   const canViewAll = user?.isSuperAdmin || user?.role === 'CTO';
   const isTeamHead = canAssignTasks(user) && !canViewAll;
@@ -94,11 +86,8 @@ export default function ProofOfWorkPage() {
     if (filterPerson !== 'all') {
       pows = pows.filter((pow) => pow.submittedBy === filterPerson);
     }
-    if (filterStatus !== 'all') {
-      pows = pows.filter((pow) => pow.status === filterStatus);
-    }
     return pows;
-  }, [allProofOfWork, user, filterPerson, filterStatus]);
+  }, [allProofOfWork, filterPerson, filterStatus, user]);
 
   const submittedCount = displayProofOfWork.filter((p) => p.status === 'submitted').length;
   const approvedCount = displayProofOfWork.filter((p) => p.status === 'approved').length;
@@ -111,20 +100,15 @@ export default function ProofOfWorkPage() {
     return Array.from(names).sort();
   }, [allProofOfWork, user]);
 
-  const taskOptions = myTasks.map((t) => ({ _id: t._id, title: t.title }));
+  const taskOptions = myTasks.map((t) => ({ id: t.id, title: t.title }));
 
-  const handleStatusUpdate = async (powId: Id<"proofOfWork">, newStatus: string, reason?: string) => {
+  const handleStatusUpdate = async (powId: string, newStatus: any, reason?: string) => {
     try {
-      await updateStatus({
-        id: powId,
-        status: newStatus,
-        reviewedBy: user?.name,
-        reviewerRole: user?.role,
-        reviewComments: reason,
-      });
-    } catch (error) {
-      console.error('Failed to update status:', error);
-      alert('Failed to update proof of work status');
+      await supabaseDb.reviewProofOfWork(powId, newStatus, reason, user?.name);
+      await loadData();
+      toast.success(`Proof status updated to ${newStatus}`);
+    } catch {
+      toast.error('Failed to update proof status');
     }
   };
 
@@ -205,8 +189,8 @@ export default function ProofOfWorkPage() {
               <CardTitle>
                 {canViewAll ? 'All Submissions' : isTeamHead ? 'Team Submissions' : 'My Submissions'}
               </CardTitle>
-              {(canViewAll || isTeamHead) && (
-                <div className="flex items-center flex-wrap gap-4">
+              <div className="flex items-center flex-wrap gap-4">
+                {(canViewAll || isTeamHead) && (
                   <div className="flex items-center gap-2">
                     <User className="h-4 w-4 text-gray-400" />
                     <select
@@ -222,21 +206,21 @@ export default function ProofOfWorkPage() {
                       ))}
                     </select>
                   </div>
-                  
-                  <div className="flex items-center gap-2">
-                    <select
-                      value={filterStatus}
-                      onChange={(e) => setFilterStatus(e.target.value)}
-                      className="px-3.5 py-2.5 rounded-lg border border-gray-300 bg-white text-sm font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 transition-all cursor-pointer hover:border-gray-400 min-w-[160px]"
-                    >
-                      <option value="all">All Statuses</option>
-                      <option value="submitted">Submitted</option>
-                      <option value="approved">Approved</option>
-                      <option value="rejected">Rejected</option>
-                    </select>
-                  </div>
+                )}
+                
+                <div className="flex items-center gap-2">
+                  <select
+                    value={filterStatus}
+                    onChange={(e) => setFilterStatus(e.target.value)}
+                    className="px-3.5 py-2.5 rounded-lg border border-gray-300 bg-white text-sm font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 transition-all cursor-pointer hover:border-gray-400 min-w-[160px]"
+                  >
+                    <option value="all">All Statuses</option>
+                    <option value="submitted">Submitted</option>
+                    <option value="approved">Approved</option>
+                    <option value="rejected">Rejected</option>
+                  </select>
                 </div>
-              )}
+              </div>
             </div>
           </CardHeader>
           <CardContent>
@@ -244,7 +228,7 @@ export default function ProofOfWorkPage() {
               {displayProofOfWork.length > 0 ? (
                 displayProofOfWork.map((pow) => (
                   <div
-                    key={pow._id}
+                    key={pow.id || (pow as any)._id}
                     className={`p-4 rounded-lg border ${
                       pow.status === 'approved'
                         ? 'bg-green-50 border-green-200'
@@ -281,8 +265,8 @@ export default function ProofOfWorkPage() {
                               <Upload className="h-3 w-3" />
                               Dropbox
                             </p>
-                            {pow.proofFile ? (
-                              <ProofFileLink storageId={pow.proofFile} />
+                            {pow.proofLink ? (
+                              <a href={pow.proofLink} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 hover:underline">View File/Link</a>
                             ) : (
                               <p className="text-xs text-muted-foreground">No file uploaded</p>
                             )}
@@ -296,8 +280,7 @@ export default function ProofOfWorkPage() {
                               proofLinks={pow.proofLinks}
                               proofLink={pow.proofLink}
                             />
-                            {!pow.proofFile &&
-                              !pow.proofLink &&
+                            {!pow.proofLink &&
                               !(pow.proofLinks && pow.proofLinks.length > 0) && (
                                 <p className="text-xs text-muted-foreground">No links</p>
                               )}
@@ -311,51 +294,10 @@ export default function ProofOfWorkPage() {
                           </div>
                         </div>
 
-                        {pow.revisionHistory && pow.revisionHistory.length > 0 ? (
-                          <div className="mt-6 border-l-2 border-slate-200 ml-2 pl-4 space-y-4">
-                            <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Audit Timeline</h4>
-                            {pow.revisionHistory.map((history: any, index: number) => (
-                              <div key={index} className="relative">
-                                <div className="absolute -left-[21px] top-1.5 h-2 w-2 rounded-full bg-slate-400 border border-white" />
-                                <div className="flex flex-col">
-                                  <div className="flex items-center gap-2 flex-wrap">
-                                    <span className={`text-sm font-medium capitalize ${
-                                      history.action === 'approved' ? 'text-green-600' :
-                                      history.action === 'rejected' ? 'text-red-600' :
-                                      history.action === 'revision_requested' ? 'text-yellow-600' : 'text-slate-700'
-                                    }`}>
-                                      {history.action.replace('_', ' ')}
-                                    </span>
-                                    <span className="text-xs text-muted-foreground">by {history.actor}</span>
-                                    {history.role && <span className="text-[10px] bg-slate-100 px-1.5 py-0.5 rounded text-slate-500">{history.role}</span>}
-                                    <span className="text-xs text-muted-foreground ml-auto">{new Date(history.timestamp).toLocaleString()}</span>
-                                  </div>
-                                  {history.comments && (
-                                    <p className="text-sm text-slate-600 mt-1 bg-slate-50 p-2 rounded border border-slate-100">"{history.comments}"</p>
-                                  )}
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        ) : (
-                          <>
-                            {pow.reviewedBy && (
-                              <p className="text-xs text-muted-foreground mt-4">
-                                Reviewed by: {pow.reviewedBy}
-                              </p>
-                            )}
-                            {pow.reviewComments && (
-                              <p className="text-xs text-muted-foreground">
-                                Comments: {pow.reviewComments}
-                              </p>
-                            )}
-                          </>
-                        )}
-
                         {pow.status === 'submitted' && canApprovePoW(user) && (
                           <div className="mt-4 flex gap-3">
                             <button
-                              onClick={() => handleStatusUpdate(pow._id, 'approved')}
+                              onClick={() => handleStatusUpdate(pow.id || (pow as any)._id, 'approved')}
                               className="px-4 py-1.5 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-md transition-colors"
                             >
                               Approve & Complete Task
@@ -364,7 +306,7 @@ export default function ProofOfWorkPage() {
                               onClick={() => {
                                 const reason = prompt('Please provide a reason for requesting a revision:');
                                 if (reason) {
-                                  handleStatusUpdate(pow._id, 'revision_requested', reason);
+                                  handleStatusUpdate(pow.id || (pow as any)._id, 'revision_requested', reason);
                                 }
                               }}
                               className="px-4 py-1.5 border border-yellow-300 text-yellow-700 hover:bg-yellow-50 text-sm font-medium rounded-md transition-colors"
@@ -375,7 +317,7 @@ export default function ProofOfWorkPage() {
                               onClick={() => {
                                 const reason = prompt('Please provide a reason for rejection:');
                                 if (reason) {
-                                  handleStatusUpdate(pow._id, 'rejected', reason);
+                                  handleStatusUpdate(pow.id || (pow as any)._id, 'rejected', reason);
                                 }
                               }}
                               className="px-4 py-1.5 border border-red-200 text-red-600 hover:bg-red-50 text-sm font-medium rounded-md transition-colors"

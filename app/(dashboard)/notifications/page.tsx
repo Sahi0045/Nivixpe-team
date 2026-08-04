@@ -2,9 +2,9 @@
 
 import { Header } from '@/components/header';
 import { Card, CardContent } from '@/components/ui/card';
-import { useQuery, useMutation } from 'convex/react';
-import { api } from '@/convex/_generated/api';
 import { useAuth } from '@/app/providers';
+import { useState, useEffect } from 'react';
+import { supabaseDb, NotificationRecord } from '@/lib/supabase-db';
 import { Bell, CheckCircle, AlertCircle, Clock, Users, FileText, Briefcase, Calendar } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import Link from 'next/link';
@@ -13,12 +13,18 @@ import { NotificationSetup } from '@/components/notification-setup';
 export default function NotificationsPage() {
   const { user } = useAuth();
   
-  // Queries
-  const notifications = useQuery(api.notifications.get, { userId: user?.email || '' }) || [];
-  
-  // Mutations
-  const markAsRead = useMutation(api.notifications.markAsRead);
-  const markAllAsRead = useMutation(api.notifications.markAllAsRead);
+  const [notifications, setNotifications] = useState<NotificationRecord[]>([]);
+
+  const loadData = async () => {
+    if (user?.name) {
+      const res = await supabaseDb.getNotifications(user.name);
+      setNotifications(res);
+    }
+  };
+
+  useEffect(() => {
+    loadData();
+  }, [user?.name]);
 
   const unreadCount = notifications.filter((n) => !n.isRead).length;
 
@@ -45,13 +51,17 @@ export default function NotificationsPage() {
   };
 
   const handleMarkAllRead = async () => {
-    if (user?.email) {
-      await markAllAsRead({ userId: user.email });
+    for (const n of notifications) {
+      if (!n.isRead) {
+        await supabaseDb.markNotificationRead(n.id);
+      }
     }
+    await loadData();
   };
 
-  const handleMarkRead = async (id: any) => {
-    await markAsRead({ id });
+  const handleMarkRead = async (id: string) => {
+    await supabaseDb.markNotificationRead(id);
+    await loadData();
   };
 
   return (
@@ -86,7 +96,7 @@ export default function NotificationsPage() {
                 
                 return (
                   <Card 
-                    key={notification._id} 
+                    key={notification.id || (notification as any)._id} 
                     className={`border border-slate-200 bg-white transition-all hover:shadow-md ${!notification.isRead ? `border-l-4 ${colorClass}` : 'opacity-75'}`}
                   >
                     <CardContent className="p-4">
@@ -117,7 +127,7 @@ export default function NotificationsPage() {
                         </div>
                         {!notification.isRead && (
                           <button 
-                            onClick={() => handleMarkRead(notification._id)}
+                            onClick={() => handleMarkRead(notification.id || (notification as any)._id)}
                             className="flex-shrink-0 w-2 h-2 rounded-full bg-indigo-600 mt-1.5"
                             title="Mark as read"
                           />

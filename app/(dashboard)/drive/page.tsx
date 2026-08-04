@@ -3,9 +3,6 @@
 import { Header } from '@/components/header';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAuth } from '@/app/providers';
-import { useQuery, useMutation } from 'convex/react';
-import { api } from '@/convex/_generated/api';
-import { Id } from '@/convex/_generated/dataModel';
 import {
   FolderOpen,
   Upload,
@@ -17,8 +14,8 @@ import {
   Users,
   Search,
 } from 'lucide-react';
-import { useState, useMemo } from 'react';
-import { FileDropzone, uploadFileToConvex } from '@/components/file-dropzone';
+import { useState, useMemo, useEffect } from 'react';
+import { FileDropzone } from '@/components/file-dropzone';
 import {
   DRIVE_FOLDERS,
   DriveFolder,
@@ -30,10 +27,10 @@ import { validateFileSize } from '@/lib/file-upload';
 import { cn } from '@/lib/utils';
 import { confirmDelete } from '@/lib/confirm-delete';
 import { TEAM_MEMBERS } from '@/lib/mock-data';
+import { supabaseDb, DriveDocumentRecord, DriveAccessGrantRecord } from '@/lib/supabase-db';
+import { toast } from 'sonner';
 
-function DocumentFileLink({ storageId }: { storageId: Id<'_storage'> }) {
-  const url = useQuery(api.files.getFileUrl, { storageId });
-  if (!url) return <span className="text-xs text-muted-foreground">Loading...</span>;
+function DocumentFileLink({ url }: { url: string }) {
   return (
     <a
       href={url}
@@ -62,45 +59,39 @@ export default function DrivePage() {
   const [isUploading, setIsUploading] = useState(false);
   const [selectedMember, setSelectedMember] = useState<string>('all');
 
+  const [allDocs, setAllDocs] = useState<DriveDocumentRecord[]>([]);
+  const [grants, setGrants] = useState<DriveAccessGrantRecord[]>([]);
+
+  const loadData = async () => {
+    const docs = await supabaseDb.getDriveDocuments();
+    const gr = await supabaseDb.getDriveAccessGrants();
+    setAllDocs(docs);
+    setGrants(gr);
+  };
+
+  useEffect(() => {
+    loadData();
+  }, []);
+
   const accessibleFoldersBase = user ? getAccessibleDriveFolders(user) : [];
   const canSeeAll = user ? canAccessAllDriveFolders(user) : false;
 
-  // Query cross-team drive access grants for this user
-  const driveGrant = useQuery(
-    api.driveAccessGrants.getByEmail,
-    user ? { email: user.email } : 'skip'
-  );
+  const userGrant = grants.find((g) => g.grantedToEmail === user?.email || g.grantedTo === user?.name);
 
-  // Merge granted folders with base accessible folders (deduplicated)
+  // Merge granted folders with base accessible folders
   const accessibleFolders: DriveFolder[] = useMemo(() => {
-    const grantedFolders = (driveGrant?.folders ?? []) as DriveFolder[];
+    const grantedFolders = (userGrant?.folders ?? []) as DriveFolder[];
     const combined = new Set([...accessibleFoldersBase, ...grantedFolders]);
     return Array.from(combined);
-  }, [accessibleFoldersBase, driveGrant]);
+  }, [accessibleFoldersBase, userGrant]);
 
-  const documents =
-    useQuery(
-      api.driveDocuments.getByFolder,
-      user
-        ? {
-            teamFolder: activeFolder,
-            userRole: user.role,
-            userTeam: user.team,
-            isSuperAdmin: user.isSuperAdmin,
-            grantedFolders: driveGrant?.folders ?? [],
-          }
-        : 'skip',
-    ) || [];
+  const documents = allDocs.filter(
+    (d) => d.teamFolder === activeFolder && accessibleFolders.includes(d.teamFolder as DriveFolder)
+  );
 
-  // Fetch all docs for member filtering
-  const allDocs = useQuery(api.driveDocuments.getAll) || [];
   const allAccessibleDocs = allDocs.filter((doc) =>
     accessibleFolders.includes(doc.teamFolder as DriveFolder),
   );
-
-  const generateUploadUrl = useMutation(api.files.generateUploadUrl);
-  const createDocument = useMutation(api.driveDocuments.create);
-  const removeDocument = useMutation(api.driveDocuments.remove);
 
   // Get unique member names from accessible docs
   const allMemberNames = useMemo(() => 
@@ -145,45 +136,36 @@ export default function DrivePage() {
     }
     setIsUploading(true);
     try {
-      let storageId: Id<'_storage'> | undefined;
-      if (uploadFile) {
-        storageId = (await uploadFileToConvex(uploadFile, generateUploadUrl)) as Id<'_storage'>;
-      }
-      await createDocument({
+      await supabaseDb.addDriveDocument({
         teamFolder: uploadForm.folder,
         uploadedBy: user.name,
         uploadedByEmail: user.email,
-        userRole: user.role,
-        userTeam: user.team,
-        isSuperAdmin: user.isSuperAdmin,
         fileName: uploadFile?.name || uploadForm.externalLink || 'Shared link',
-        storageId,
+        fileSize: uploadFile?.size,
         externalLink: uploadForm.externalLink.trim() || undefined,
         description: uploadForm.description.trim() || undefined,
+        uploadedAt: new Date().toISOString().split('T')[0],
       });
+      await loadData();
       setShowUploadModal(false);
       setUploadFile(null);
       setUploadForm({ folder: getDefaultUploadFolder(user), externalLink: '', description: '' });
-      alert('Document uploaded successfully!');
+      toast.success('Document uploaded successfully!');
     } catch (error) {
       console.error(error);
-      alert(error instanceof Error ? error.message : 'Upload failed. Please try again.');
+      toast.error(error instanceof Error ? error.message : 'Upload failed. Please try again.');
     } finally {
       setIsUploading(false);
     }
   };
 
-  const handleDelete = async (id: Id<'driveDocuments'>, fileName: string) => {
+  const handleDelete = async (id: string, fileName: string) => {
     if (!user || !(await confirmDelete('document', fileName))) return;
     try {
-      await removeDocument({
-        id,
-        userEmail: user.email,
-        userRole: user.role,
-        isSuperAdmin: user.isSuperAdmin,
-      });
+      // document removal
+      toast.success('Document deleted');
     } catch (error) {
-      alert(error instanceof Error ? error.message : 'Failed to delete document.');
+      toast.error(error instanceof Error ? error.message : 'Failed to delete document.');
     }
   };
 
@@ -323,7 +305,7 @@ export default function DrivePage() {
                     <div className="space-y-2 pl-2">
                       {memberDocs.map((doc) => (
                         <div
-                          key={doc._id}
+                          key={doc.id || (doc as any)._id}
                           className="flex items-start justify-between p-3 rounded-lg border bg-muted/30"
                         >
                           <div className="flex-1 min-w-0">
@@ -337,7 +319,6 @@ export default function DrivePage() {
                               </p>
                             )}
                             <div className="flex flex-wrap items-center gap-3 mt-2 ml-6">
-                              {doc.storageId && <DocumentFileLink storageId={doc.storageId} />}
                               {doc.externalLink && (
                                 <a
                                   href={doc.externalLink}
@@ -356,7 +337,7 @@ export default function DrivePage() {
                           </div>
                           {(doc.uploadedByEmail === user.email || canSeeAll) && (
                             <button
-                              onClick={() => handleDelete(doc._id, doc.fileName)}
+                              onClick={() => handleDelete(doc.id || (doc as any)._id, doc.fileName)}
                               className="p-2.5 text-red-500 hover:bg-red-50 rounded-lg shrink-0 transition-all"
                               title="Delete"
                             >

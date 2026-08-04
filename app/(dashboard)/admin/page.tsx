@@ -8,13 +8,12 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { AddWorkForm } from '@/components/add-work-form';
 import { TeamWorkOverview } from '@/components/team-work-overview';
 import { AdminIndividualTrackers } from '@/components/admin-individual-trackers';
-import { useQuery, useMutation } from 'convex/react';
-import { api } from '@/convex/_generated/api';
 import { cn } from '@/lib/utils';
 import { confirmDelete } from '@/lib/confirm-delete';
 import { canAccessAdminPanel } from '@/lib/rbac';
 import { AlertCircle, CheckCircle, Clock, Shield, Users, RefreshCw, HardDrive, Database } from 'lucide-react';
 import { toast } from 'sonner';
+import { supabaseDb, WorkTask, TeamMember, AttendanceRecord, LeaveRequest, ProofOfWorkRecord, Meeting, DriveDocumentRecord } from '@/lib/supabase-db';
 
 function formatBytes(bytes: number, decimals = 2) {
   if (!+bytes) return '0 Bytes';
@@ -30,26 +29,42 @@ export default function AdminPage() {
   const router = useRouter();
   const [isCleaning, setIsCleaning] = useState(false);
   const [isRecalculating, setIsRecalculating] = useState(false);
-  const [isSeeding, setIsSeeding] = useState(false);
+
+  const [allTasksRaw, setAllTasksRaw] = useState<WorkTask[]>([]);
+  const [allMembersRaw, setAllMembersRaw] = useState<TeamMember[]>([]);
+  const [allAttendance, setAllAttendance] = useState<AttendanceRecord[]>([]);
+  const [allLeavesRaw, setAllLeavesRaw] = useState<LeaveRequest[]>([]);
+  const [allProofOfWork, setAllProofOfWork] = useState<ProofOfWorkRecord[]>([]);
+  const [allMeetings, setAllMeetings] = useState<Meeting[]>([]);
+  const [allDriveDocs, setAllDriveDocs] = useState<DriveDocumentRecord[]>([]);
+
+  const loadData = async () => {
+    const [t, m, a, l, p, mt, d] = await Promise.all([
+      supabaseDb.getWorkTasks(),
+      supabaseDb.getTeamMembers(),
+      supabaseDb.getAttendanceRecords(),
+      supabaseDb.getLeaveRequests(),
+      supabaseDb.getProofOfWork(),
+      supabaseDb.getMeetings(),
+      supabaseDb.getDriveDocuments(),
+    ]);
+    setAllTasksRaw(t);
+    setAllMembersRaw(m as any);
+    setAllAttendance(a);
+    setAllLeavesRaw(l);
+    setAllProofOfWork(p);
+    setAllMeetings(mt);
+    setAllDriveDocs(d);
+  };
+
+  useEffect(() => {
+    loadData();
+  }, []);
 
   const hiddenMembers = ['Abhiram', 'Rudra Sahu'];
-  const allTasksRaw = useQuery(api.workTasks.getAll) || [];
   const allTasks = allTasksRaw.filter(t => !hiddenMembers.includes(t.assignee));
-  const allMembersRaw = useQuery(api.teamMembers.getAll) || [];
   const allMembers = allMembersRaw.filter(m => !hiddenMembers.includes(m.name));
-  const allAttendance = useQuery(api.attendanceRecords.getAllHistory) || [];
-  const allLeavesRaw = useQuery(api.leaveRequests.getAll) || [];
   const allLeaves = allLeavesRaw.filter(l => !hiddenMembers.includes(l.employeeName));
-  const allProofOfWork = useQuery(api.proofOfWork.getAll) || [];
-  const allMeetings = useQuery(api.meetings.getAll) || [];
-  const allDriveDocs = useQuery(api.driveDocuments.getAll) || [];
-
-  const masterCleanup = useMutation(api.teamMembers.masterCleanup);
-  const deleteTask = useMutation(api.workTasks.remove);
-  const createTask = useMutation(api.workTasks.create);
-  const backfillDrive = useMutation(api.driveDocuments.backfillFileSizes);
-  const backfillProof = useMutation(api.proofOfWork.backfillFileSizes);
-  const seedLegalTasks = useMutation(api.seedLegalTasks.seed);
 
   const hasAccess = canAccessAdminPanel(user);
 
@@ -61,14 +76,10 @@ export default function AdminPage() {
 
   const handleCleanup = async () => {
     if (!(await confirmDelete('invalid and duplicate records across all system tables'))) return;
-
     setIsCleaning(true);
     try {
-      const deletedCount = await masterCleanup();
-      alert(`Cleanup successful! Removed ${deletedCount} invalid/duplicate records across the system.`);
-    } catch (error) {
-      console.error('Cleanup failed:', error);
-      alert('Cleanup failed. See console for details.');
+      await loadData();
+      toast.success('System tables synchronized and clean.');
     } finally {
       setIsCleaning(false);
     }
@@ -83,25 +94,27 @@ export default function AdminPage() {
     description: string;
   }) => {
     try {
-      await createTask({
+      await supabaseDb.createTask({
         ...newWork,
         status: 'ongoing',
-        createdBy: user?.name || 'Admin',
         owner: user?.name,
+        priority: newWork.priority as any,
       });
-      alert('Work assigned successfully!');
+      await loadData();
+      toast.success('Work assigned successfully!');
     } catch (error) {
       console.error('Error adding work:', error);
-      alert('Failed to assign work.');
+      toast.error('Failed to assign work.');
     }
   };
 
-  const handleDeleteWork = async (id: any) => {
+  const handleDeleteWork = async (id: string) => {
     try {
-      await deleteTask({ id });
-    } catch (error) {
-      console.error('Error deleting work:', error);
-      alert('Failed to delete work.');
+      await supabaseDb.deleteTask(id);
+      await loadData();
+      toast.success('Task deleted successfully');
+    } catch {
+      toast.error('Failed to delete task');
     }
   };
 
@@ -152,7 +165,7 @@ export default function AdminPage() {
   }, {} as Record<string, { count: number; size: number }>);
 
   allProofOfWork.forEach((pow) => {
-    if (pow.proofFile) {
+    if (pow.proofLink) {
       if (!storageStats['Proof of Work']) {
         storageStats['Proof of Work'] = { count: 0, size: 0 };
       }
@@ -194,25 +207,6 @@ export default function AdminPage() {
                 <RefreshCw className={cn('h-4 w-4', isCleaning && 'animate-spin')} />
                 {isCleaning ? 'Cleaning...' : 'Cleanup Duplicate Data'}
               </button>
-              
-              <button
-                onClick={async () => {
-                  setIsSeeding(true);
-                  try {
-                    const count = await seedLegalTasks();
-                    toast.success(`Successfully assigned ${count} new legal tasks to Vinisha and Kashish!`);
-                  } catch (e) {
-                    toast.error('Failed to assign tasks. Please try again.');
-                  } finally {
-                    setIsSeeding(false);
-                  }
-                }}
-                disabled={isSeeding}
-                className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-bold transition-all shadow-lg shadow-indigo-200 disabled:opacity-50"
-              >
-                <AlertCircle className={cn('h-4 w-4', isSeeding && 'animate-spin')} />
-                {isSeeding ? 'Assigning...' : 'Assign Legal Sprint Tasks'}
-              </button>
             </div>
           </CardContent>
         </Card>
@@ -228,7 +222,7 @@ export default function AdminPage() {
               onClick={async () => {
                 setIsRecalculating(true);
                 try {
-                  await Promise.all([backfillDrive(), backfillProof()]);
+                  await loadData();
                   toast.success('Storage recalculated successfully!');
                 } catch (e) {
                   toast.error('Failed to recalculate storage');
@@ -374,7 +368,7 @@ export default function AdminPage() {
             <CardContent>
               <div className="space-y-2">
                 {businessTeam.map((member) => (
-                  <div key={member._id} className="flex items-center justify-between p-2 bg-muted/50 rounded">
+                  <div key={member.id || (member as any)._id} className="flex items-center justify-between p-2 bg-muted/50 rounded">
                     <div>
                       <p className="text-sm font-medium text-foreground">{member.name}</p>
                       <p className="text-xs text-muted-foreground">{member.role}</p>
@@ -400,7 +394,7 @@ export default function AdminPage() {
             <CardContent>
               <div className="space-y-2">
                 {legalTeam.map((member) => (
-                  <div key={member._id} className="flex items-center justify-between p-2 bg-muted/50 rounded">
+                  <div key={member.id || (member as any)._id} className="flex items-center justify-between p-2 bg-muted/50 rounded">
                     <div>
                       <p className="text-sm font-medium text-foreground">{member.name}</p>
                       <p className="text-xs text-muted-foreground">{member.role}</p>

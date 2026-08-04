@@ -1,10 +1,10 @@
 'use client';
 
 import { Header } from '@/components/header';
-import { useQuery } from 'convex/react';
-import { api } from '@/convex/_generated/api';
 import { useAuth } from '@/app/providers';
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
+import { supabaseDb, AttendanceRecord, TeamMember } from '@/lib/supabase-db';
+import { TEAM_MEMBERS } from '@/lib/mock-data';
 import {
   Calendar,
   Clock,
@@ -57,9 +57,17 @@ export default function AttendanceHistoryPage() {
   const [selectedRole, setSelectedRole] = useState('All Roles');
   const [selectedPersonEmail, setSelectedPersonEmail] = useState('');
 
-  /* ── Live queries ── */
-  const allHistory = useQuery(api.attendanceRecords.getAllHistory) || [];
-  const rawMembers = useQuery(api.teamMembers.getAll) || [];
+  const [allHistory, setAllHistory] = useState<AttendanceRecord[]>([]);
+  const [rawMembers, setRawMembers] = useState<TeamMember[]>(TEAM_MEMBERS as any);
+
+  useEffect(() => {
+    Promise.all([supabaseDb.getAttendanceRecords(), supabaseDb.getTeamMembers()]).then(
+      ([history, members]) => {
+        setAllHistory(history);
+        setRawMembers(members as any);
+      }
+    );
+  }, []);
 
   const hiddenMembers = ['Abhiram', 'Rudra Sahu'];
 
@@ -317,7 +325,7 @@ export default function AttendanceHistoryPage() {
                   >
                     <option value="">Myself ({user?.name})</option>
                     {teamMembers.filter(m => m.email !== user?.email && !hiddenMembers.includes(m.name)).map(m => (
-                      <option key={m._id} value={m.email}>{m.name}</option>
+                      <option key={m.id || (m as any)._id} value={m.email}>{m.name}</option>
                     ))}
                   </select>
                 </div>

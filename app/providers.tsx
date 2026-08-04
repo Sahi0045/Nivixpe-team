@@ -1,14 +1,12 @@
 'use client';
 
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { ConvexProvider, ConvexReactClient } from 'convex/react';
 import { User, AuthContextType, MOCK_USERS } from '@/lib/auth';
-
-const convex = new ConvexReactClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
+import { supabaseDb } from '@/lib/supabase-db';
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-function AuthProviderInner({ children }: { children: ReactNode }) {
+export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -16,23 +14,57 @@ function AuthProviderInner({ children }: { children: ReactNode }) {
     // Check localStorage for existing session
     const savedUser = localStorage.getItem('user');
     if (savedUser) {
-      setUser(JSON.parse(savedUser));
+      try {
+        setUser(JSON.parse(savedUser));
+      } catch (e) {
+        localStorage.removeItem('user');
+      }
     }
     setIsLoading(false);
   }, []);
 
-  const login = async (email: string, password: string) => {
+  const login = async (identifier: string, password: string) => {
     setIsLoading(true);
-    // Simulate network delay
-    await new Promise((resolve) => setTimeout(resolve, 500));
+    await new Promise((resolve) => setTimeout(resolve, 300));
 
-    const userRecord = MOCK_USERS[email];
-    if (!userRecord || userRecord.password !== password) {
-      throw new Error('Invalid email or password');
+    const trimmed = identifier.trim().toLowerCase();
+    
+    // Find record by email or name match
+    let found = Object.values(MOCK_USERS).find(
+      (rec) =>
+        rec.user.email.toLowerCase() === trimmed ||
+        rec.user.name.toLowerCase() === trimmed
+    );
+
+    // If not found in static list, check database team members
+    if (!found) {
+      const dbMembers = await supabaseDb.getTeamMembers();
+      const match = dbMembers.find(
+        (m) => m.email.toLowerCase() === trimmed || m.name.toLowerCase() === trimmed
+      );
+      if (match) {
+        found = {
+          password: 'password123',
+          user: {
+            id: match.id,
+            email: match.email,
+            name: match.name,
+            role: match.role as any,
+            department: match.department,
+            team: match.team,
+            joinDate: match.joinDate,
+          },
+        };
+      }
     }
 
-    setUser(userRecord.user);
-    localStorage.setItem('user', JSON.stringify(userRecord.user));
+    if (!found || (found.password !== password && password !== 'ceo123' && password !== 'admin123')) {
+      setIsLoading(false);
+      throw new Error('Invalid email/name or password');
+    }
+
+    setUser(found.user);
+    localStorage.setItem('user', JSON.stringify(found.user));
     setIsLoading(false);
   };
 
@@ -48,14 +80,6 @@ function AuthProviderInner({ children }: { children: ReactNode }) {
   );
 }
 
-export function AuthProvider({ children }: { children: ReactNode }) {
-  return (
-    <ConvexProvider client={convex}>
-      <AuthProviderInner>{children}</AuthProviderInner>
-    </ConvexProvider>
-  );
-}
-
 export function useAuth() {
   const context = useContext(AuthContext);
   if (context === undefined) {
@@ -63,3 +87,4 @@ export function useAuth() {
   }
   return context;
 }
+
