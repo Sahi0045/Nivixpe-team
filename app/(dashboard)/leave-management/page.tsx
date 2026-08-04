@@ -20,6 +20,8 @@ export default function LeaveManagementPage() {
 
   useEffect(() => {
     loadData();
+    const unsub = supabaseDb.subscribeToChanges('leave_requests', loadData);
+    return () => unsub();
   }, []);
 
   const myLeaveRequests = allLeaveRequests.filter((l) => l.employeeEmail === user?.email || l.employeeName === user?.name);

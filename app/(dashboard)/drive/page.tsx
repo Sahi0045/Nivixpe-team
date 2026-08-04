@@ -73,6 +73,12 @@ export default function DrivePage() {
 
   useEffect(() => {
     loadData();
+    const unsubDocs = supabaseDb.subscribeToChanges('drive_documents', loadData);
+    const unsubGrants = supabaseDb.subscribeToChanges('drive_access_grants', loadData);
+    return () => {
+      unsubDocs();
+      unsubGrants();
+    };
   }, []);
 
   const accessibleFoldersBase = user ? getAccessibleDriveFolders(user) : [];

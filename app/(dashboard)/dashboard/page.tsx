@@ -21,7 +21,7 @@ export default function DashboardPage() {
   const [meetings, setMeetings] = useState<Meeting[]>([]);
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
 
-  useEffect(() => {
+  const loadData = () => {
     Promise.all([
       supabaseDb.getWorkTasks(),
       supabaseDb.getAttendanceRecords(),
@@ -35,6 +35,21 @@ export default function DashboardPage() {
       setMeetings(m);
       setTeamMembers(tm as any);
     });
+  };
+
+  useEffect(() => {
+    loadData();
+    const unsubTasks = supabaseDb.subscribeToChanges('work_tasks', loadData);
+    const unsubAtt = supabaseDb.subscribeToChanges('attendance_records', loadData);
+    const unsubPow = supabaseDb.subscribeToChanges('proof_of_work', loadData);
+    const unsubMeetings = supabaseDb.subscribeToChanges('meetings', loadData);
+
+    return () => {
+      unsubTasks();
+      unsubAtt();
+      unsubPow();
+      unsubMeetings();
+    };
   }, [today]);
 
   // KPI Calculations

@@ -16,7 +16,10 @@ export function NotificationCenter() {
 
   useEffect(() => {
     if (user?.name) {
-      supabaseDb.getNotifications(user.name).then(setNotifications);
+      const loadNotifs = () => supabaseDb.getNotifications(user.name).then(setNotifications);
+      loadNotifs();
+      const unsub = supabaseDb.subscribeToChanges('notifications', loadNotifs);
+      return () => unsub();
     }
   }, [user?.name, isOpen]);
 

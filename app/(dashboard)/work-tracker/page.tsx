@@ -76,6 +76,12 @@ function WorkTrackerContent() {
 
   useEffect(() => {
     loadData();
+    const unsubTasks = supabaseDb.subscribeToChanges('work_tasks', loadData);
+    const unsubPow = supabaseDb.subscribeToChanges('proof_of_work', loadData);
+    return () => {
+      unsubTasks();
+      unsubPow();
+    };
   }, []);
 
   useEffect(() => {

@@ -76,6 +76,8 @@ export default function ProofOfWorkPage() {
 
   useEffect(() => {
     loadData();
+    const unsub = supabaseDb.subscribeToChanges('proof_of_work', loadData);
+    return () => unsub();
   }, [user?.name]);
 
   const canViewAll = user?.isSuperAdmin || user?.role === 'CTO';

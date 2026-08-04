@@ -24,6 +24,8 @@ export default function MeetingsPage() {
 
   useEffect(() => {
     loadData();
+    const unsub = supabaseDb.subscribeToChanges('meetings', loadData);
+    return () => unsub();
   }, []);
 
   const canManageMeetings = user?.isSuperAdmin || user?.role === 'CEO' || user?.role === 'COO';

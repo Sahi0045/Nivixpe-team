@@ -1392,4 +1392,23 @@ export const supabaseDb = {
       localNotifications = localNotifications.map((n) => (n.id === id ? { ...n, isRead: true } : n));
     }
   },
+
+  // --- REAL-TIME SUBSCRIPTION HELPER ---
+  subscribeToChanges(table: string, callback: () => void): () => void {
+    if (!isSupabaseConfigured) return () => {};
+    const channel = supabase
+      .channel(`realtime_${table}_${Date.now()}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table },
+        () => {
+          callback();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  },
 };

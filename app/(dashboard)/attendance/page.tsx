@@ -53,6 +53,12 @@ export default function AttendancePage() {
 
   useEffect(() => {
     loadData();
+    const unsubAtt = supabaseDb.subscribeToChanges('attendance_records', loadData);
+    const unsubLeave = supabaseDb.subscribeToChanges('leave_requests', loadData);
+    return () => {
+      unsubAtt();
+      unsubLeave();
+    };
   }, [today]);
 
   const myAttendance = todayAttendance.find(a => a.email === user?.email);
