@@ -5,11 +5,10 @@ import { useAuth } from '@/app/providers';
 import { Header } from '@/components/header';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { TEAM_MEMBERS, TeamMember } from '@/lib/mock-data';
 import { Search, User as UserIcon, Calendar, Clock, X, FolderOpen, Shield, CheckSquare, Square } from 'lucide-react';
 import { PageFilterBar } from '@/components/page-filter-bar';
 import { DriveFolder, DRIVE_FOLDERS } from '@/lib/drive-access';
-import { supabaseDb, AttendanceRecord } from '@/lib/supabase-db';
+import { supabaseDb, AttendanceRecord, TeamMember } from '@/lib/supabase-db';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
 
@@ -20,7 +19,13 @@ export default function TeamDirectoryPage() {
   const [filterTeam, setFilterTeam] = useState('all');
   const [selectedMember, setSelectedMember] = useState<TeamMember | null>(null);
 
-  const filteredMembers = TEAM_MEMBERS.filter((member) => {
+  const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
+
+  useEffect(() => {
+    supabaseDb.getTeamMembers().then(setTeamMembers as any);
+  }, []);
+
+  const filteredMembers = teamMembers.filter((member) => {
     if (member.status === 'inactive') return false;
     const matchesSearch =
       member.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -30,7 +35,7 @@ export default function TeamDirectoryPage() {
     return matchesSearch && matchesRole && matchesTeam;
   });
 
-  const roles = Array.from(new Set(TEAM_MEMBERS.map((m) => m.role)));
+  const roles = Array.from(new Set(teamMembers.map((m) => m.role)));
 
   return (
     <div className="flex-1 overflow-y-auto flex flex-col relative">

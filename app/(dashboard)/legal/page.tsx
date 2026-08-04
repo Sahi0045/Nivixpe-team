@@ -4,11 +4,18 @@ import { useAuth } from '@/app/providers';
 import { Header } from '@/components/header';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { AlertCircle, CheckCircle, FileText, Shield } from 'lucide-react';
-import { TEAM_MEMBERS } from '@/lib/mock-data';
+import { useState, useEffect } from 'react';
+import { supabaseDb, TeamMember } from '@/lib/supabase-db';
 
 export default function LegalPage() {
   const { user } = useAuth();
-  const legalTeamMembers = TEAM_MEMBERS.filter((m) => m.team === 'Legal');
+  const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
+
+  useEffect(() => {
+    supabaseDb.getTeamMembers().then(setTeamMembers as any);
+  }, []);
+
+  const legalTeamMembers = teamMembers.filter((m) => m.team === 'Legal');
   const legalDocuments = [
     {
       id: '1',

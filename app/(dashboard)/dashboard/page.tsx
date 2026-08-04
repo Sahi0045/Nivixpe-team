@@ -4,8 +4,7 @@ import { useAuth } from '@/app/providers';
 import { Header } from '@/components/header';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useState, useEffect } from 'react';
-import { supabaseDb, WorkTask, AttendanceRecord, ProofOfWorkRecord, Meeting } from '@/lib/supabase-db';
-import { TEAM_MEMBERS } from '@/lib/mock-data';
+import { supabaseDb, WorkTask, AttendanceRecord, ProofOfWorkRecord, Meeting, TeamMember } from '@/lib/supabase-db';
 import { KPICard } from '@/components/kpi-card';
 import { ActivityFeed } from '@/components/activity-feed';
 import { Users, CheckCircle, Clock, CheckSquare, Calendar, LinkIcon } from 'lucide-react';
@@ -20,6 +19,7 @@ export default function DashboardPage() {
   const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([]);
   const [allProofOfWork, setAllProofOfWork] = useState<ProofOfWorkRecord[]>([]);
   const [meetings, setMeetings] = useState<Meeting[]>([]);
+  const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
 
   useEffect(() => {
     Promise.all([
@@ -27,11 +27,13 @@ export default function DashboardPage() {
       supabaseDb.getAttendanceRecords(),
       supabaseDb.getProofOfWork(),
       supabaseDb.getMeetings(),
-    ]).then(([t, a, p, m]) => {
+      supabaseDb.getTeamMembers(),
+    ]).then(([t, a, p, m, tm]) => {
       setAllTasks(t);
       setAttendanceRecords(a.filter((r) => r.date === today));
       setAllProofOfWork(p);
       setMeetings(m);
+      setTeamMembers(tm as any);
     });
   }, [today]);
 
@@ -40,7 +42,7 @@ export default function DashboardPage() {
   const completedTasks = allTasks.filter((t) => t.status === 'completed').length;
   const completionRate = allTasks.length > 0 ? Math.round((completedTasks / allTasks.length) * 100) : 0;
   const pendingReviews = allProofOfWork.filter((pow) => pow.status === 'submitted').length;
-  const activeEmployees = TEAM_MEMBERS.filter(m => m.status === 'active' && !['Abhiram', 'Rudra Sahu'].includes(m.name)).length;
+  const activeEmployees = teamMembers.filter(m => m.status === 'active' && !['Abhiram', 'Rudra Sahu'].includes(m.name)).length;
 
   // Names to hide everywhere except Proof of Work and Team Drive
   const hiddenMembers = ['Abhiram', 'Rudra Sahu'];
@@ -69,7 +71,7 @@ export default function DashboardPage() {
   });
 
   attendanceRecords.slice(0, 5).forEach(record => {
-    const memberName = TEAM_MEMBERS.find(m => m.email === record.email)?.name || record.email;
+    const memberName = teamMembers.find(m => m.email === record.email)?.name || record.email;
     activities.push({
       id: `att-${record.email}-${record.date}`,
       user: memberName,
@@ -92,7 +94,7 @@ export default function DashboardPage() {
           <KPICard 
             title="Present Today" 
             value={presentToday} 
-            subtitle={`out of ${TEAM_MEMBERS.length} employees`}
+            subtitle={`out of ${activeEmployees} employees`}
             icon={<Users />}
             bgColor="blue"
           />

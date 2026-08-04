@@ -4,7 +4,6 @@ import { Header } from '@/components/header';
 import { useAuth } from '@/app/providers';
 import { useState, useMemo, useEffect } from 'react';
 import { supabaseDb, AttendanceRecord, TeamMember } from '@/lib/supabase-db';
-import { TEAM_MEMBERS } from '@/lib/mock-data';
 import {
   Calendar,
   Clock,
@@ -58,7 +57,7 @@ export default function AttendanceHistoryPage() {
   const [selectedPersonEmail, setSelectedPersonEmail] = useState('');
 
   const [allHistory, setAllHistory] = useState<AttendanceRecord[]>([]);
-  const [rawMembers, setRawMembers] = useState<TeamMember[]>(TEAM_MEMBERS as any);
+  const [rawMembers, setRawMembers] = useState<TeamMember[]>([]);
 
   useEffect(() => {
     Promise.all([supabaseDb.getAttendanceRecords(), supabaseDb.getTeamMembers()]).then(

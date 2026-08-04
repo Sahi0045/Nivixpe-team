@@ -1,8 +1,8 @@
 'use client';
 
-import { TEAM_MEMBERS } from '@/lib/mock-data';
 import { Search, Filter, Users, User } from 'lucide-react';
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
+import { supabaseDb, TeamMember } from '@/lib/supabase-db';
 
 interface PageFilterBarProps {
   onTeamChange: (team: string) => void;
@@ -12,7 +12,7 @@ interface PageFilterBarProps {
   showTeamFilter?: boolean;
   showPersonFilter?: boolean;
   /** Restrict to these team members only */
-  visibleMembers?: typeof TEAM_MEMBERS;
+  visibleMembers?: TeamMember[];
   extraFilters?: React.ReactNode;
 }
 
@@ -35,7 +35,15 @@ export function PageFilterBar({
   visibleMembers,
   extraFilters,
 }: PageFilterBarProps) {
-  const members = visibleMembers || TEAM_MEMBERS;
+  const [fetchedMembers, setFetchedMembers] = useState<TeamMember[]>([]);
+
+  useEffect(() => {
+    if (!visibleMembers) {
+      supabaseDb.getTeamMembers().then(setFetchedMembers);
+    }
+  }, [visibleMembers]);
+
+  const members = visibleMembers || fetchedMembers;
 
   const filteredMembers = useMemo(() => {
     if (selectedTeam === 'all') return members;

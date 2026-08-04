@@ -68,85 +68,15 @@ export interface DriveAccessGrantRecord {
   grantedAt: string;
 }
 
-// In-memory fallback state initialized with rich real data
-let localTeamMembers: TeamMember[] = [...TEAM_MEMBERS];
-let localWorkTasks: WorkTask[] = [...WORK_TASKS];
-let localAttendanceRecords: AttendanceRecord[] = [...ATTENDANCE_RECORDS];
-let localLeaveRequests: LeaveRequest[] = [...LEAVE_REQUESTS];
-let localMeetings: Meeting[] = [...MEETINGS];
-
-let localProofOfWork: ProofOfWorkRecord[] = [
-  {
-    id: 'pow-1',
-    taskTitle: 'Business Model Canvas',
-    submittedBy: 'Swaraag',
-    submittedByEmail: 'cso@nivixpe.com',
-    submissionDate: '2025-04-15 17:30',
-    workDescription: 'Completed market research & revenue framework presentation.',
-    proofLink: 'https://docs.google.com/presentation/d/sample1',
-    status: 'approved',
-    reviewedBy: 'Sahith',
-    reviewComments: 'Great analysis.',
-  },
-  {
-    id: 'pow-2',
-    taskTitle: 'Legal Compliance Audit',
-    submittedBy: 'Kashish',
-    submittedByEmail: 'legal1@nivixpe.com',
-    submissionDate: '2025-05-01 16:00',
-    workDescription: 'Audited active vendor agreements & NDAs.',
-    proofLink: 'https://docs.google.com/document/d/sample2',
-    status: 'submitted',
-  },
-];
-
-let localDriveDocuments: DriveDocumentRecord[] = [
-  {
-    id: 'doc-1',
-    teamFolder: 'Business',
-    uploadedBy: 'Swaraag',
-    uploadedByEmail: 'cso@nivixpe.com',
-    fileName: 'Pitch_Deck_v2.pdf',
-    fileSize: 4200000,
-    externalLink: 'https://drive.google.com/file/d/deck',
-    description: 'Updated presentation for Q3 investor meetings',
-    uploadedAt: '2025-04-26',
-  },
-  {
-    id: 'doc-2',
-    teamFolder: 'Legal',
-    uploadedBy: 'Kashish',
-    uploadedByEmail: 'legal1@nivixpe.com',
-    fileName: 'Standard_NDA_Template.pdf',
-    fileSize: 1500000,
-    externalLink: 'https://drive.google.com/file/d/nda',
-    description: 'Standard NDA template approved by Sahith',
-    uploadedAt: '2025-04-30',
-  },
-];
-
-let localNotifications: NotificationRecord[] = [
-  {
-    id: 'notif-1',
-    userId: 'Sahith',
-    title: 'New Leave Request',
-    message: 'Kashish submitted a leave request for May 10 - May 12.',
-    type: 'leave',
-    isRead: false,
-    createdAt: new Date().toISOString(),
-    link: '/leave-management',
-  },
-  {
-    id: 'notif-2',
-    userId: 'Sahith',
-    title: 'Proof of Work Submitted',
-    message: 'Kashish submitted Proof of Work for Legal Compliance Audit.',
-    type: 'pow',
-    isRead: false,
-    createdAt: new Date().toISOString(),
-    link: '/proof-of-work',
-  },
-];
+// In-memory state initialized empty (all data sourced from Supabase)
+let localTeamMembers: TeamMember[] = [];
+let localWorkTasks: WorkTask[] = [];
+let localAttendanceRecords: AttendanceRecord[] = [];
+let localLeaveRequests: LeaveRequest[] = [];
+let localMeetings: Meeting[] = [];
+let localProofOfWork: ProofOfWorkRecord[] = [];
+let localDriveDocuments: DriveDocumentRecord[] = [];
+let localNotifications: NotificationRecord[] = [];
 
 let localDriveAccessGrants: DriveAccessGrantRecord[] = [
   {

@@ -15,8 +15,7 @@ import {
   User,
 } from 'lucide-react';
 import { useState, useMemo, useEffect } from 'react';
-import { supabaseDb, ProofOfWorkRecord, WorkTask } from '@/lib/supabase-db';
-import { TEAM_MEMBERS } from '@/lib/mock-data';
+import { supabaseDb, ProofOfWorkRecord, WorkTask, TeamMember } from '@/lib/supabase-db';
 import { canViewTeamTasks, canAssignTasks, canApprovePoW } from '@/lib/rbac';
 import { ProofSubmissionForm } from '@/components/proof-submission-form';
 import { toast } from 'sonner';
@@ -64,12 +63,15 @@ export default function ProofOfWorkPage() {
 
   const [allProofOfWork, setAllProofOfWork] = useState<ProofOfWorkRecord[]>([]);
   const [myTasks, setMyTasks] = useState<WorkTask[]>([]);
+  const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
 
   const loadData = async () => {
     const pow = await supabaseDb.getProofOfWork();
     const tasks = await supabaseDb.getWorkTasks();
+    const members = await supabaseDb.getTeamMembers();
     setAllProofOfWork(pow);
     setMyTasks(tasks.filter((t) => t.assignee === user?.name));
+    setTeamMembers(members as any);
   };
 
   useEffect(() => {
@@ -81,13 +83,16 @@ export default function ProofOfWorkPage() {
 
   const displayProofOfWork = useMemo(() => {
     let pows = allProofOfWork.filter((pow) =>
-      canViewTeamTasks(user, pow.submittedBy, TEAM_MEMBERS),
+      canViewTeamTasks(user, pow.submittedBy, teamMembers),
     );
     if (filterPerson !== 'all') {
       pows = pows.filter((pow) => pow.submittedBy === filterPerson);
     }
+    if (filterStatus !== 'all') {
+      pows = pows.filter((pow) => pow.status === filterStatus);
+    }
     return pows;
-  }, [allProofOfWork, filterPerson, filterStatus, user]);
+  }, [allProofOfWork, filterPerson, filterStatus, user, teamMembers]);
 
   const submittedCount = displayProofOfWork.filter((p) => p.status === 'submitted').length;
   const approvedCount = displayProofOfWork.filter((p) => p.status === 'approved').length;
@@ -95,10 +100,10 @@ export default function ProofOfWorkPage() {
 
   const submitterNames = useMemo(() => {
     const names = new Set(allProofOfWork.filter((pow) =>
-      canViewTeamTasks(user, pow.submittedBy, TEAM_MEMBERS)
+      canViewTeamTasks(user, pow.submittedBy, teamMembers)
     ).map((pow) => pow.submittedBy));
     return Array.from(names).sort();
-  }, [allProofOfWork, user]);
+  }, [allProofOfWork, user, teamMembers]);
 
   const taskOptions = myTasks.map((t) => ({ id: t.id, title: t.title }));
 

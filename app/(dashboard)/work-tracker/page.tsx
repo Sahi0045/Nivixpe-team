@@ -4,7 +4,6 @@ import { useAuth } from '@/app/providers';
 import { Header } from '@/components/header';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { PageFilterBar } from '@/components/page-filter-bar';
-import { TEAM_MEMBERS } from '@/lib/mock-data';
 import { canAssignTasks, getAssignableMembers, getVisibleTasks, canDeleteAllocatedTask } from '@/lib/rbac';
 import { confirmDelete } from '@/lib/confirm-delete';
 import { CheckCircle, Clock, AlertCircle, Shield, Users, RefreshCw, User, Plus, X, FileCheck, AlertTriangle, Edit } from 'lucide-react';
@@ -64,12 +63,15 @@ function WorkTrackerContent() {
 
   const [allTasks, setAllTasks] = useState<WorkTask[]>([]);
   const [allProofOfWork, setAllProofOfWork] = useState<ProofOfWorkRecord[]>([]);
+  const [teamMembers, setTeamMembers] = useState<any[]>([]);
 
   const loadData = async () => {
     const tasks = await supabaseDb.getWorkTasks();
     const pow = await supabaseDb.getProofOfWork();
+    const members = await supabaseDb.getTeamMembers();
     setAllTasks(tasks);
     setAllProofOfWork(pow);
+    setTeamMembers(members);
   };
 
   useEffect(() => {
@@ -125,7 +127,7 @@ function WorkTrackerContent() {
     }
   };
   
-  const activeTeamMembers = TEAM_MEMBERS.filter(m => m.status !== 'inactive' && !['Abhiram', 'Rudra Sahu'].includes(m.name));
+  const activeTeamMembers = teamMembers.filter(m => m.status !== 'inactive' && !['Abhiram', 'Rudra Sahu'].includes(m.name));
   const hiddenAssignees = ['Abhiram', 'Rudra Sahu'];
   const visibleTasks = getVisibleTasks(user, allTasks, activeTeamMembers).filter(
     t => !hiddenAssignees.includes(t.assignee)
@@ -195,7 +197,7 @@ function WorkTrackerContent() {
       tasks = tasks.filter((t) => t.status !== 'completed');
     }
 
-    const member = TEAM_MEMBERS.find(m => m.name === assigneeName);
+    const member = teamMembers.find(m => m.name === assigneeName);
 
     return (
       <Card key={assigneeName} className="border-border">
@@ -618,7 +620,7 @@ function WorkTrackerContent() {
                           await loadData();
                           toast.success('Task updated successfully!');
                         } else {
-                          const assigneeMember = TEAM_MEMBERS.find(m => m.name === selectedAssignee);
+                          const assigneeMember = teamMembers.find(m => m.name === selectedAssignee);
                           if (!assigneeMember) return toast.error('Invalid assignee');
 
                           await supabaseDb.createTask({

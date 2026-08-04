@@ -5,8 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Calendar, Users, FileText, Plus, Upload, Shield, X } from 'lucide-react';
 import { useAuth } from '@/app/providers';
 import { useState, useEffect } from 'react';
-import { supabaseDb, Meeting } from '@/lib/supabase-db';
-import { TEAM_MEMBERS } from '@/lib/mock-data';
+import { supabaseDb, Meeting, TeamMember } from '@/lib/supabase-db';
 import { confirmDelete } from '@/lib/confirm-delete';
 import { toast } from 'sonner';
 
@@ -14,10 +13,13 @@ export default function MeetingsPage() {
   const { user } = useAuth();
 
   const [allMeetings, setAllMeetings] = useState<Meeting[]>([]);
+  const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
 
   const loadData = async () => {
     const m = await supabaseDb.getMeetings();
+    const tm = await supabaseDb.getTeamMembers();
     setAllMeetings(m);
+    setTeamMembers(tm as any);
   };
 
   useEffect(() => {
@@ -213,9 +215,9 @@ export default function MeetingsPage() {
                     Select Attendees
                   </label>
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-2 max-h-48 overflow-y-auto p-3 border border-gray-300 rounded-lg">
-                    {TEAM_MEMBERS.map((member) => (
+                    {teamMembers.map((member) => (
                       <label
-                        key={member.id}
+                        key={member.id || (member as any)._id}
                         className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 p-2 rounded"
                       >
                         <input

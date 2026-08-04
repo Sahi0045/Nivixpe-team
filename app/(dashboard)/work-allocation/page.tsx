@@ -5,11 +5,10 @@ import { useRouter } from 'next/navigation'
 import { Header } from '@/components/header'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { PageFilterBar } from '@/components/page-filter-bar'
-import { TEAM_MEMBERS } from '@/lib/mock-data'
 import { Shield, Plus } from 'lucide-react'
 import { useState, useMemo, useEffect } from 'react'
 import { canAssignTasks } from '@/lib/rbac'
-import { supabaseDb, WorkTask } from '@/lib/supabase-db'
+import { supabaseDb, WorkTask, TeamMember } from '@/lib/supabase-db'
 
 export default function WorkAllocationPage() {
   const { user } = useAuth()
@@ -18,15 +17,17 @@ export default function WorkAllocationPage() {
   const [filterPerson, setFilterPerson] = useState('all')
   
   const [allTasks, setAllTasks] = useState<WorkTask[]>([])
+  const [teamMembers, setTeamMembers] = useState<TeamMember[]>([])
 
   useEffect(() => {
     supabaseDb.getWorkTasks().then(setAllTasks)
+    supabaseDb.getTeamMembers().then(setTeamMembers as any)
   }, [])
   
   // RBAC: Filter team members based on user role
   const getVisibleMembers = () => {
     if (!user) return []
-    const activeMembers = TEAM_MEMBERS.filter(m => m.status !== 'inactive' && !['Abhiram', 'Rudra Sahu'].includes(m.name))
+    const activeMembers = teamMembers.filter(m => m.status !== 'inactive' && !['Abhiram', 'Rudra Sahu'].includes(m.name))
     
     // CEO sees everyone
     if (user.isSuperAdmin) {
@@ -140,31 +141,31 @@ export default function WorkAllocationPage() {
                 <div className="flex justify-between items-center text-sm">
                   <span className="text-purple-900">Business Team (Swaraag)</span>
                   <span className="font-semibold text-purple-700">
-                    {TEAM_MEMBERS.filter((m) => m.team === 'Business').length} members
+                    {teamMembers.filter((m) => m.team === 'Business').length} members
                   </span>
                 </div>
                 <div className="flex justify-between items-center text-sm">
                   <span className="text-purple-900">Marketing Team</span>
                   <span className="font-semibold text-purple-700">
-                    {TEAM_MEMBERS.filter((m) => m.team === 'Marketing').length} members
+                    {teamMembers.filter((m) => m.team === 'Marketing').length} members
                   </span>
                 </div>
                 <div className="flex justify-between items-center text-sm">
                   <span className="text-purple-900">Design Team (Bhavika)</span>
                   <span className="font-semibold text-purple-700">
-                    {TEAM_MEMBERS.filter((m) => m.team === 'Design').length} members
+                    {teamMembers.filter((m) => m.team === 'Design').length} members
                   </span>
                 </div>
                 <div className="flex justify-between items-center text-sm">
                   <span className="text-purple-900">Legal Team (Kashish)</span>
                   <span className="font-semibold text-purple-700">
-                    {TEAM_MEMBERS.filter((m) => m.team === 'Legal').length} members
+                    {teamMembers.filter((m) => m.team === 'Legal').length} members
                   </span>
                 </div>
                 <div className="flex justify-between items-center text-sm">
                   <span className="text-purple-900">Technical Team (Shubham)</span>
                   <span className="font-semibold text-purple-700">
-                    {TEAM_MEMBERS.filter((m) => m.team === 'Technical').length} members
+                    {teamMembers.filter((m) => m.team === 'Technical').length} members
                   </span>
                 </div>
               </div>

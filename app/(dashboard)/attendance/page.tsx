@@ -4,7 +4,6 @@ import { Header } from '@/components/header';
 import { useAuth } from '@/app/providers';
 import { useState, useEffect, useCallback } from 'react';
 import { supabaseDb, AttendanceRecord, LeaveRequest, TeamMember } from '@/lib/supabase-db';
-import { TEAM_MEMBERS } from '@/lib/mock-data';
 import {
   CheckCircle,
   Clock,
@@ -41,7 +40,7 @@ export default function AttendancePage() {
 
   const [todayAttendance, setTodayAttendance] = useState<AttendanceRecord[]>([]);
   const [activeLeavesToday, setActiveLeavesToday] = useState<LeaveRequest[]>([]);
-  const [allMembers, setAllMembers] = useState<TeamMember[]>(TEAM_MEMBERS as any);
+  const [allMembers, setAllMembers] = useState<TeamMember[]>([]);
 
   const loadData = async () => {
     const records = await supabaseDb.getAttendanceRecords();
@@ -124,7 +123,7 @@ export default function AttendancePage() {
 
   /* ── Filtered table data ── */
   const filteredAttendance = todayAttendance.filter(r => {
-    const memberName = TEAM_MEMBERS.find(m => m.email === r.email)?.name || r.email;
+    const memberName = allMembers.find(m => m.email === r.email)?.name || r.email;
     const matchSearch = r.email.toLowerCase().includes(searchTerm.toLowerCase()) || memberName.toLowerCase().includes(searchTerm.toLowerCase());
     const matchStatus = statusFilter === 'all' || r.status === statusFilter;
     return matchSearch && matchStatus;
@@ -486,7 +485,7 @@ export default function AttendancePage() {
                       const mins = liveMinutes(record);
                       const isSufficient = mins >= 240;
                       const isActiveRow = (record as any).currentSessionStart && !(record as any).isPaused;
-                      const memberName = TEAM_MEMBERS.find(m => m.email === record.email)?.name || record.email;
+                      const memberName = allMembers.find(m => m.email === record.email)?.name || record.email;
                       return (
                         <tr key={record.email + record.date}>
                           <td>

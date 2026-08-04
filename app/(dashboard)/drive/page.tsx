@@ -26,8 +26,7 @@ import {
 import { validateFileSize } from '@/lib/file-upload';
 import { cn } from '@/lib/utils';
 import { confirmDelete } from '@/lib/confirm-delete';
-import { TEAM_MEMBERS } from '@/lib/mock-data';
-import { supabaseDb, DriveDocumentRecord, DriveAccessGrantRecord } from '@/lib/supabase-db';
+import { supabaseDb, DriveDocumentRecord, DriveAccessGrantRecord, TeamMember } from '@/lib/supabase-db';
 import { toast } from 'sonner';
 
 function DocumentFileLink({ url }: { url: string }) {
@@ -39,7 +38,7 @@ function DocumentFileLink({ url }: { url: string }) {
       className="text-sm text-blue-600 hover:underline inline-flex items-center gap-1"
     >
       <ExternalLink className="h-3 w-3" />
-      Download file
+      View uploaded file
     </a>
   );
 }
@@ -61,12 +60,15 @@ export default function DrivePage() {
 
   const [allDocs, setAllDocs] = useState<DriveDocumentRecord[]>([]);
   const [grants, setGrants] = useState<DriveAccessGrantRecord[]>([]);
+  const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
 
   const loadData = async () => {
     const docs = await supabaseDb.getDriveDocuments();
     const gr = await supabaseDb.getDriveAccessGrants();
+    const tm = await supabaseDb.getTeamMembers();
     setAllDocs(docs);
     setGrants(gr);
+    setTeamMembers(tm as any);
   };
 
   useEffect(() => {
@@ -101,8 +103,8 @@ export default function DrivePage() {
 
   // Get all team members for the dropdown (not just those who uploaded)
   const availableTeamMembers = useMemo(() => {
-    return TEAM_MEMBERS.map(m => m.name).sort();
-  }, []);
+    return teamMembers.map(m => m.name).sort();
+  }, [teamMembers]);
 
   // Filter documents: combine folder filter + member filter
   const displayedDocuments = useMemo(() => {
