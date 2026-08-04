@@ -185,3 +185,22 @@ export const remove = mutation({
     await ctx.db.delete(args.id);
   },
 });
+
+export const getAllWithUrls = query({
+  args: {},
+  handler: async (ctx) => {
+    const allDocs = await ctx.db.query("driveDocuments").order("desc").collect();
+    return Promise.all(
+      allDocs.map(async (doc) => {
+        let fileUrl = doc.externalLink;
+        if (doc.storageId) {
+          fileUrl = (await ctx.storage.getUrl(doc.storageId)) || undefined;
+        }
+        return {
+          ...doc,
+          fileUrl,
+        };
+      })
+    );
+  },
+});
