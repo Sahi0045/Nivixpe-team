@@ -1121,9 +1121,26 @@ export const supabaseDb = {
     if (!isSupabaseConfigured) return localWorkTasks;
     try {
       const { data, error } = await supabase.from('work_tasks').select('*');
-      if (error || !data || data.length === 0) return localWorkTasks;
-      return data as WorkTask[];
-    } catch {
+      if (error) { console.warn('[supabaseDb] getWorkTasks error:', error.message); return localWorkTasks; }
+      if (!data || data.length === 0) return localWorkTasks;
+      // Map snake_case DB columns → camelCase WorkTask
+      return data.map((t: any) => ({
+        id: t.id,
+        title: t.title,
+        assignee: t.assignee,
+        assigneeRole: t.assignee_role || t.assigneeRole,
+        status: t.status,
+        dueDate: t.due_date || t.dueDate,
+        completedDate: t.completed_date || t.completedDate,
+        priority: t.priority,
+        description: t.description,
+        comments: t.comments,
+        owner: t.owner,
+        coordinationWith: t.coordination_with || t.coordinationWith,
+        createdBy: t.created_by || t.createdBy,
+      })) as WorkTask[];
+    } catch (e) {
+      console.warn('[supabaseDb] getWorkTasks exception:', e);
       return localWorkTasks;
     }
   },
@@ -1133,8 +1150,23 @@ export const supabaseDb = {
     localWorkTasks.unshift(newTask);
     if (isSupabaseConfigured) {
       try {
-        await supabase.from('work_tasks').insert([newTask]);
-      } catch {}
+        // Map camelCase → snake_case for Supabase columns
+        const { error } = await supabase.from('work_tasks').insert([{
+          id: newTask.id,
+          title: newTask.title,
+          assignee: newTask.assignee,
+          assignee_role: newTask.assigneeRole,
+          status: newTask.status,
+          due_date: newTask.dueDate,
+          completed_date: newTask.completedDate || null,
+          priority: newTask.priority,
+          description: newTask.description || null,
+          comments: newTask.comments || null,
+          owner: newTask.owner || null,
+          coordination_with: newTask.coordinationWith || null,
+        }]);
+        if (error) console.warn('[supabaseDb] createTask error:', error.message);
+      } catch (e) { console.warn('[supabaseDb] createTask exception:', e); }
     }
     return newTask;
   },
@@ -1143,8 +1175,22 @@ export const supabaseDb = {
     localWorkTasks = localWorkTasks.map((t) => (t.id === id ? { ...t, ...updates } : t));
     if (isSupabaseConfigured) {
       try {
-        await supabase.from('work_tasks').update(updates).eq('id', id);
-      } catch {}
+        // Map camelCase → snake_case
+        const dbUpdates: any = {};
+        if (updates.title !== undefined) dbUpdates.title = updates.title;
+        if (updates.assignee !== undefined) dbUpdates.assignee = updates.assignee;
+        if (updates.assigneeRole !== undefined) dbUpdates.assignee_role = updates.assigneeRole;
+        if (updates.status !== undefined) dbUpdates.status = updates.status;
+        if (updates.dueDate !== undefined) dbUpdates.due_date = updates.dueDate;
+        if (updates.completedDate !== undefined) dbUpdates.completed_date = updates.completedDate;
+        if (updates.priority !== undefined) dbUpdates.priority = updates.priority;
+        if (updates.description !== undefined) dbUpdates.description = updates.description;
+        if (updates.comments !== undefined) dbUpdates.comments = updates.comments;
+        if (updates.owner !== undefined) dbUpdates.owner = updates.owner;
+        if (updates.coordinationWith !== undefined) dbUpdates.coordination_with = updates.coordinationWith;
+        const { error } = await supabase.from('work_tasks').update(dbUpdates).eq('id', id);
+        if (error) console.warn('[supabaseDb] updateTask error:', error.message);
+      } catch (e) { console.warn('[supabaseDb] updateTask exception:', e); }
     }
   },
 
@@ -1152,8 +1198,9 @@ export const supabaseDb = {
     localWorkTasks = localWorkTasks.filter((t) => t.id !== id);
     if (isSupabaseConfigured) {
       try {
-        await supabase.from('work_tasks').delete().eq('id', id);
-      } catch {}
+        const { error } = await supabase.from('work_tasks').delete().eq('id', id);
+        if (error) console.warn('[supabaseDb] deleteTask error:', error.message);
+      } catch (e) { console.warn('[supabaseDb] deleteTask exception:', e); }
     }
   },
 
@@ -1162,25 +1209,29 @@ export const supabaseDb = {
     if (isSupabaseConfigured) {
       try {
         const { data, error } = await supabase.from('attendance_records').select('*');
-        if (!error && data && data.length > 0) {
-          return data.map((r: any) => ({
+        if (error) { console.warn('[supabaseDb] getAttendanceRecords error:', error.message); }
+        else if (data && data.length > 0) {
+          // Also update local cache so UI stays consistent
+          localAttendanceRecords = data.map((r: any) => ({
             id: String(r.id),
             date: r.date,
             email: r.email,
-            loginTime: r.login_time || r.loginTime,
-            logoutTime: r.logout_time || r.logoutTime,
+            loginTime: r.login_time ?? r.loginTime,
+            logoutTime: r.logout_time ?? r.logoutTime,
             status: r.status,
-            workHours: r.work_hours ?? r.workHours,
-            currentSessionStart: r.current_session_start || r.currentSessionStart,
-            isPaused: r.is_paused ?? r.isPaused,
+            workHours: r.work_hours ?? r.workHours ?? 0,
+            currentSessionStart: r.current_session_start ?? r.currentSessionStart ?? null,
+            isPaused: r.is_paused ?? r.isPaused ?? false,
           })) as AttendanceRecord[];
+          return localAttendanceRecords;
         }
-      } catch {}
+      } catch (e) { console.warn('[supabaseDb] getAttendanceRecords exception:', e); }
     }
     return localAttendanceRecords;
   },
 
   async markAttendance(record: Omit<AttendanceRecord, 'id'> & { id?: string; _id?: string }): Promise<void> {
+    // 1. Always update local cache immediately for instant UI feedback
     const index = localAttendanceRecords.findIndex(
       (r) => r.date === record.date && r.email === record.email
     );
@@ -1190,19 +1241,40 @@ export const supabaseDb = {
       localAttendanceRecords.push({ ...record });
     }
 
+    // 2. Persist to Supabase - only write columns that exist in the schema
     if (isSupabaseConfigured) {
       try {
-        await supabase.from('attendance_records').upsert([{
+        const payload: any = {
           date: record.date,
           email: record.email,
-          login_time: record.loginTime,
-          logout_time: record.logoutTime,
+          login_time: record.loginTime ?? null,
+          logout_time: record.logoutTime ?? null,
           status: record.status,
-          work_hours: record.workHours,
-          current_session_start: record.currentSessionStart,
-          is_paused: record.isPaused,
-        }], { onConflict: 'date,email' });
-      } catch {}
+          // These columns require running supabase/migrations/add_attendance_columns.sql first
+          work_hours: record.workHours ?? 0,
+          current_session_start: record.currentSessionStart ?? null,
+          is_paused: record.isPaused ?? false,
+        };
+        const { error } = await supabase
+          .from('attendance_records')
+          .upsert([payload], { onConflict: 'date,email' });
+        if (error) {
+          // If work_hours column doesn't exist yet, retry with base columns only
+          if (error.message?.includes('work_hours') || error.message?.includes('current_session') || error.message?.includes('is_paused')) {
+            console.warn('[supabaseDb] Missing attendance columns - run add_attendance_columns.sql migration. Retrying with base columns only.');
+            const { error: e2 } = await supabase.from('attendance_records').upsert([{
+              date: record.date,
+              email: record.email,
+              login_time: record.loginTime ?? null,
+              logout_time: record.logoutTime ?? null,
+              status: record.status,
+            }], { onConflict: 'date,email' });
+            if (e2) console.warn('[supabaseDb] markAttendance base retry error:', e2.message);
+          } else {
+            console.warn('[supabaseDb] markAttendance error:', error.message);
+          }
+        }
+      } catch (e) { console.warn('[supabaseDb] markAttendance exception:', e); }
     }
   },
 
@@ -1211,7 +1283,8 @@ export const supabaseDb = {
     if (isSupabaseConfigured) {
       try {
         const { data, error } = await supabase.from('leave_requests').select('*');
-        if (!error && data && data.length > 0) {
+        if (error) { console.warn('[supabaseDb] getLeaveRequests error:', error.message); }
+        else if (data && data.length > 0) {
           return data.map((r: any) => ({
             id: r.id,
             employeeName: r.employee_name || r.employeeName,
@@ -1224,7 +1297,7 @@ export const supabaseDb = {
             approvedBy: r.approved_by || r.approvedBy,
           }));
         }
-      } catch {}
+      } catch (e) { console.warn('[supabaseDb] getLeaveRequests exception:', e); }
     }
     return localLeaveRequests;
   },
@@ -1234,7 +1307,7 @@ export const supabaseDb = {
     localLeaveRequests.unshift(newReq);
     if (isSupabaseConfigured) {
       try {
-        await supabase.from('leave_requests').insert([{
+        const { error } = await supabase.from('leave_requests').insert([{
           id: newReq.id,
           employee_name: newReq.employeeName,
           employee_email: newReq.employeeEmail,
@@ -1245,7 +1318,8 @@ export const supabaseDb = {
           type: newReq.type,
           approved_by: newReq.approvedBy || null,
         }]);
-      } catch {}
+        if (error) console.warn('[supabaseDb] createLeaveRequest error:', error.message);
+      } catch (e) { console.warn('[supabaseDb] createLeaveRequest exception:', e); }
     }
     return newReq;
   },
@@ -1254,8 +1328,9 @@ export const supabaseDb = {
     localLeaveRequests = localLeaveRequests.map((l) => (l.id === id ? { ...l, status } : l));
     if (isSupabaseConfigured) {
       try {
-        await supabase.from('leave_requests').update({ status }).eq('id', id);
-      } catch {}
+        const { error } = await supabase.from('leave_requests').update({ status }).eq('id', id);
+        if (error) console.warn('[supabaseDb] updateLeaveStatus error:', error.message);
+      } catch (e) { console.warn('[supabaseDb] updateLeaveStatus exception:', e); }
     }
   },
 
@@ -1264,8 +1339,23 @@ export const supabaseDb = {
     if (isSupabaseConfigured) {
       try {
         const { data, error } = await supabase.from('meetings').select('*');
-        if (!error && data && data.length > 0) return data as Meeting[];
-      } catch {}
+        if (error) { console.warn('[supabaseDb] getMeetings error:', error.message); }
+        else if (data && data.length > 0) {
+          return data.map((m: any) => ({
+            id: m.id,
+            title: m.title,
+            date: m.date,
+            time: m.time,
+            attendees: m.attendees || [],
+            status: m.status,
+            minutesUrl: m.minutes_url || m.minutesUrl,
+            scheduledBy: m.scheduled_by || m.scheduledBy,
+            meetLink: m.meet_link || m.meetLink,
+            decisions: m.decisions,
+            agenda: m.agenda,
+          })) as Meeting[];
+        }
+      } catch (e) { console.warn('[supabaseDb] getMeetings exception:', e); }
     }
     return localMeetings;
   },
@@ -1275,8 +1365,19 @@ export const supabaseDb = {
     localMeetings.unshift(newMeeting);
     if (isSupabaseConfigured) {
       try {
-        await supabase.from('meetings').insert([newMeeting]);
-      } catch {}
+        // Map camelCase → snake_case for DB columns
+        const { error } = await supabase.from('meetings').insert([{
+          id: newMeeting.id,
+          title: newMeeting.title,
+          date: newMeeting.date,
+          time: newMeeting.time,
+          attendees: newMeeting.attendees || [],
+          status: newMeeting.status,
+          minutes_url: newMeeting.minutesUrl || null,
+          scheduled_by: (newMeeting as any).scheduledBy || null,
+        }]);
+        if (error) console.warn('[supabaseDb] createMeeting error:', error.message);
+      } catch (e) { console.warn('[supabaseDb] createMeeting exception:', e); }
     }
     return newMeeting;
   },
@@ -1288,8 +1389,13 @@ export const supabaseDb = {
     }
     if (isSupabaseConfigured) {
       try {
-        await supabase.from('meetings').update({ ...updates, status: 'completed' }).eq('id', id);
-      } catch {}
+        const dbUpdates: any = { status: 'completed' };
+        if (updates.minutesUrl !== undefined) dbUpdates.minutes_url = updates.minutesUrl;
+        if (updates.decisions !== undefined) dbUpdates.decisions = updates.decisions;
+        if (updates.agenda !== undefined) dbUpdates.agenda = updates.agenda;
+        const { error } = await supabase.from('meetings').update(dbUpdates).eq('id', id);
+        if (error) console.warn('[supabaseDb] completeMeeting error:', error.message);
+      } catch (e) { console.warn('[supabaseDb] completeMeeting exception:', e); }
     }
   },
 
