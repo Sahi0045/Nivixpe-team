@@ -430,7 +430,7 @@ function WorkTrackerContent() {
               <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
                 <div className="bg-white rounded-lg border border-blue-200 p-3">
                   <Users className="h-4 w-4 text-blue-600 mb-2" />
-                  <p className="text-2xl font-bold text-blue-900">{allAssignees.length}</p>
+                  <p className="text-2xl font-bold text-blue-900">{activeTeamMembers.length}</p>
                   <p className="text-xs text-blue-700">Team Members</p>
                 </div>
                 <div className="bg-white rounded-lg border border-green-200 p-3">
