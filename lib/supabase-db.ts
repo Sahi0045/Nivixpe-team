@@ -1092,21 +1092,28 @@ export const supabaseDb = {
       ? member.email.trim().toLowerCase()
       : `${member.name.trim().toLowerCase().split(' ')[0]}@nivixpe.com`;
     const newMember = { ...member, email: formattedEmail, id: String(Date.now()) };
-    if (!isSupabaseConfigured) {
-      localTeamMembers.push(newMember);
-      return newMember;
+    
+    // Always sync local state
+    localTeamMembers.push(newMember);
+
+    if (isSupabaseConfigured) {
+      try {
+        const { data, error } = await supabase.from('team_members').insert([{
+          id: newMember.id,
+          name: newMember.name,
+          email: newMember.email,
+          role: newMember.role,
+          department: newMember.department,
+          team: newMember.team,
+          additional_teams: newMember.additionalTeams,
+          reports_to: newMember.reportsTo,
+          status: newMember.status,
+          join_date: newMember.joinDate,
+        }]).select();
+        if (!error && data && data[0]) return data[0] as TeamMember;
+      } catch {}
     }
-    try {
-      const { data, error } = await supabase.from('team_members').insert([newMember]).select();
-      if (error || !data) {
-        localTeamMembers.push(newMember);
-        return newMember;
-      }
-      return data[0] as TeamMember;
-    } catch {
-      localTeamMembers.push(newMember);
-      return newMember;
-    }
+    return newMember;
   },
 
   // --- WORK TASKS ---
@@ -1123,171 +1130,155 @@ export const supabaseDb = {
 
   async createTask(task: Omit<WorkTask, 'id'>): Promise<WorkTask> {
     const newTask = { ...task, id: 'task-' + Date.now() };
-    if (!isSupabaseConfigured) {
-      localWorkTasks.unshift(newTask);
-      return newTask;
+    localWorkTasks.unshift(newTask);
+    if (isSupabaseConfigured) {
+      try {
+        await supabase.from('work_tasks').insert([newTask]);
+      } catch {}
     }
-    try {
-      const { data, error } = await supabase.from('work_tasks').insert([newTask]).select();
-      if (error || !data) {
-        localWorkTasks.unshift(newTask);
-        return newTask;
-      }
-      return data[0] as WorkTask;
-    } catch {
-      localWorkTasks.unshift(newTask);
-      return newTask;
-    }
+    return newTask;
   },
 
   async updateTask(id: string, updates: Partial<WorkTask>): Promise<void> {
-    if (!isSupabaseConfigured) {
-      localWorkTasks = localWorkTasks.map((t) => (t.id === id ? { ...t, ...updates } : t));
-      return;
-    }
-    try {
-      await supabase.from('work_tasks').update(updates).eq('id', id);
-    } catch {
-      localWorkTasks = localWorkTasks.map((t) => (t.id === id ? { ...t, ...updates } : t));
+    localWorkTasks = localWorkTasks.map((t) => (t.id === id ? { ...t, ...updates } : t));
+    if (isSupabaseConfigured) {
+      try {
+        await supabase.from('work_tasks').update(updates).eq('id', id);
+      } catch {}
     }
   },
 
   async deleteTask(id: string): Promise<void> {
-    if (!isSupabaseConfigured) {
-      localWorkTasks = localWorkTasks.filter((t) => t.id !== id);
-      return;
-    }
-    try {
-      await supabase.from('work_tasks').delete().eq('id', id);
-    } catch {
-      localWorkTasks = localWorkTasks.filter((t) => t.id !== id);
+    localWorkTasks = localWorkTasks.filter((t) => t.id !== id);
+    if (isSupabaseConfigured) {
+      try {
+        await supabase.from('work_tasks').delete().eq('id', id);
+      } catch {}
     }
   },
 
   // --- ATTENDANCE ---
   async getAttendanceRecords(): Promise<AttendanceRecord[]> {
-    if (!isSupabaseConfigured) return localAttendanceRecords;
-    try {
-      const { data, error } = await supabase.from('attendance_records').select('*');
-      if (error || !data || data.length === 0) return localAttendanceRecords;
-      return data as AttendanceRecord[];
-    } catch {
-      return localAttendanceRecords;
+    if (isSupabaseConfigured) {
+      try {
+        const { data, error } = await supabase.from('attendance_records').select('*');
+        if (!error && data && data.length > 0) {
+          return data.map((r: any) => ({
+            id: String(r.id),
+            date: r.date,
+            email: r.email,
+            loginTime: r.login_time || r.loginTime,
+            logoutTime: r.logout_time || r.logoutTime,
+            status: r.status,
+            workHours: r.work_hours ?? r.workHours,
+            currentSessionStart: r.current_session_start || r.currentSessionStart,
+            isPaused: r.is_paused ?? r.isPaused,
+          })) as AttendanceRecord[];
+        }
+      } catch {}
     }
+    return localAttendanceRecords;
   },
 
-  async markAttendance(record: Omit<AttendanceRecord, 'id'>): Promise<void> {
-    if (!isSupabaseConfigured) {
-      const index = localAttendanceRecords.findIndex(
-        (r) => r.date === record.date && r.email === record.email
-      );
-      if (index >= 0) {
-        localAttendanceRecords[index] = { ...localAttendanceRecords[index], ...record };
-      } else {
-        localAttendanceRecords.push({ ...record });
-      }
-      return;
+  async markAttendance(record: Omit<AttendanceRecord, 'id'> & { id?: string; _id?: string }): Promise<void> {
+    const index = localAttendanceRecords.findIndex(
+      (r) => r.date === record.date && r.email === record.email
+    );
+    if (index >= 0) {
+      localAttendanceRecords[index] = { ...localAttendanceRecords[index], ...record };
+    } else {
+      localAttendanceRecords.push({ ...record });
     }
-    try {
-      await supabase.from('attendance_records').upsert([record], { onConflict: 'date,email' });
-    } catch {
-      // fallback
+
+    if (isSupabaseConfigured) {
+      try {
+        await supabase.from('attendance_records').upsert([{
+          date: record.date,
+          email: record.email,
+          login_time: record.loginTime,
+          logout_time: record.logoutTime,
+          status: record.status,
+          work_hours: record.workHours,
+          current_session_start: record.currentSessionStart,
+          is_paused: record.isPaused,
+        }], { onConflict: 'date,email' });
+      } catch {}
     }
   },
 
   // --- LEAVE REQUESTS ---
   async getLeaveRequests(): Promise<LeaveRequest[]> {
-    if (!isSupabaseConfigured) return localLeaveRequests;
-    try {
-      const { data, error } = await supabase.from('leave_requests').select('*');
-      if (error || !data || data.length === 0) return localLeaveRequests;
-      return data.map((r: any) => ({
-        id: r.id,
-        employeeName: r.employee_name || r.employeeName,
-        employeeEmail: r.employee_email || r.employeeEmail,
-        startDate: r.start_date || r.startDate,
-        endDate: r.end_date || r.endDate,
-        reason: r.reason,
-        status: r.status,
-        type: r.type,
-        approvedBy: r.approved_by || r.approvedBy,
-      }));
-    } catch {
-      return localLeaveRequests;
+    if (isSupabaseConfigured) {
+      try {
+        const { data, error } = await supabase.from('leave_requests').select('*');
+        if (!error && data && data.length > 0) {
+          return data.map((r: any) => ({
+            id: r.id,
+            employeeName: r.employee_name || r.employeeName,
+            employeeEmail: r.employee_email || r.employeeEmail,
+            startDate: r.start_date || r.startDate,
+            endDate: r.end_date || r.endDate,
+            reason: r.reason,
+            status: r.status,
+            type: r.type,
+            approvedBy: r.approved_by || r.approvedBy,
+          }));
+        }
+      } catch {}
     }
+    return localLeaveRequests;
   },
 
   async createLeaveRequest(req: Omit<LeaveRequest, 'id'>): Promise<LeaveRequest> {
     const newReq = { ...req, id: 'leave-' + Date.now() };
-    if (!isSupabaseConfigured) {
-      localLeaveRequests.unshift(newReq);
-      return newReq;
+    localLeaveRequests.unshift(newReq);
+    if (isSupabaseConfigured) {
+      try {
+        await supabase.from('leave_requests').insert([{
+          id: newReq.id,
+          employee_name: newReq.employeeName,
+          employee_email: newReq.employeeEmail,
+          start_date: newReq.startDate,
+          end_date: newReq.endDate,
+          reason: newReq.reason,
+          status: newReq.status,
+          type: newReq.type,
+          approved_by: newReq.approvedBy || null,
+        }]);
+      } catch {}
     }
-    try {
-      const dbRecord = {
-        id: newReq.id,
-        employee_name: newReq.employeeName,
-        employee_email: newReq.employeeEmail,
-        start_date: newReq.startDate,
-        end_date: newReq.endDate,
-        reason: newReq.reason,
-        status: newReq.status,
-        type: newReq.type,
-        approved_by: newReq.approvedBy || null,
-      };
-      const { data, error } = await supabase.from('leave_requests').insert([dbRecord]).select();
-      if (error || !data) {
-        localLeaveRequests.unshift(newReq);
-        return newReq;
-      }
-      return newReq;
-    } catch {
-      localLeaveRequests.unshift(newReq);
-      return newReq;
-    }
+    return newReq;
   },
 
   async updateLeaveStatus(id: string, status: 'approved' | 'rejected'): Promise<void> {
-    if (!isSupabaseConfigured) {
-      localLeaveRequests = localLeaveRequests.map((l) => (l.id === id ? { ...l, status } : l));
-      return;
-    }
-    try {
-      await supabase.from('leave_requests').update({ status }).eq('id', id);
-    } catch {
-      localLeaveRequests = localLeaveRequests.map((l) => (l.id === id ? { ...l, status } : l));
+    localLeaveRequests = localLeaveRequests.map((l) => (l.id === id ? { ...l, status } : l));
+    if (isSupabaseConfigured) {
+      try {
+        await supabase.from('leave_requests').update({ status }).eq('id', id);
+      } catch {}
     }
   },
 
   // --- MEETINGS ---
   async getMeetings(): Promise<Meeting[]> {
-    if (!isSupabaseConfigured) return localMeetings;
-    try {
-      const { data, error } = await supabase.from('meetings').select('*');
-      if (error || !data || data.length === 0) return localMeetings;
-      return data as Meeting[];
-    } catch {
-      return localMeetings;
+    if (isSupabaseConfigured) {
+      try {
+        const { data, error } = await supabase.from('meetings').select('*');
+        if (!error && data && data.length > 0) return data as Meeting[];
+      } catch {}
     }
+    return localMeetings;
   },
 
   async createMeeting(meeting: Omit<Meeting, 'id'>): Promise<Meeting> {
     const newMeeting = { ...meeting, id: 'meet-' + Date.now() };
-    if (!isSupabaseConfigured) {
-      localMeetings.unshift(newMeeting);
-      return newMeeting;
+    localMeetings.unshift(newMeeting);
+    if (isSupabaseConfigured) {
+      try {
+        await supabase.from('meetings').insert([newMeeting]);
+      } catch {}
     }
-    try {
-      const { data, error } = await supabase.from('meetings').insert([newMeeting]).select();
-      if (error || !data) {
-        localMeetings.unshift(newMeeting);
-        return newMeeting;
-      }
-      return data[0] as Meeting;
-    } catch {
-      localMeetings.unshift(newMeeting);
-      return newMeeting;
-    }
+    return newMeeting;
   },
 
   async completeMeeting(id: string, updates: Partial<Meeting>): Promise<void> {
@@ -1296,244 +1287,222 @@ export const supabaseDb = {
       localMeetings[idx] = { ...localMeetings[idx], ...updates, status: 'completed' };
     }
     if (isSupabaseConfigured) {
-      await supabase.from('meetings').update({ ...updates, status: 'completed' }).eq('id', id);
+      try {
+        await supabase.from('meetings').update({ ...updates, status: 'completed' }).eq('id', id);
+      } catch {}
     }
   },
 
   async deleteMeeting(id: string): Promise<void> {
     localMeetings = localMeetings.filter((m) => m.id !== id);
     if (isSupabaseConfigured) {
-      await supabase.from('meetings').delete().eq('id', id);
+      try {
+        await supabase.from('meetings').delete().eq('id', id);
+      } catch {}
     }
   },
 
   // --- PROOF OF WORK ---
   async getProofOfWork(): Promise<ProofOfWorkRecord[]> {
-    if (!isSupabaseConfigured) return localProofOfWork;
-    try {
-      const { data, error } = await supabase.from('proof_of_work').select('*');
-      if (error || !data || data.length === 0) return localProofOfWork;
-      return data.map((r: any) => ({
-        id: r.id,
-        taskId: r.task_id || r.taskId,
-        taskTitle: r.task_title || r.taskTitle,
-        submittedBy: r.submitted_by || r.submittedBy,
-        submittedByEmail: r.submitted_by_email || r.submittedByEmail,
-        submissionDate: r.submission_date || r.submissionDate,
-        workDescription: r.work_description || r.workDescription,
-        proofLink: r.proof_link || r.proofLink,
-        proofLinks: r.proof_links || r.proofLinks || [],
-        fileSize: r.file_size || r.fileSize,
-        status: r.status,
-        reviewedBy: r.reviewed_by || r.reviewedBy,
-        reviewComments: r.review_comments || r.reviewComments,
-      }));
-    } catch {
-      return localProofOfWork;
+    if (isSupabaseConfigured) {
+      try {
+        const { data, error } = await supabase.from('proof_of_work').select('*');
+        if (!error && data && data.length > 0) {
+          return data.map((r: any) => ({
+            id: r.id,
+            taskId: r.task_id || r.taskId,
+            taskTitle: r.task_title || r.taskTitle,
+            submittedBy: r.submitted_by || r.submittedBy,
+            submittedByEmail: r.submitted_by_email || r.submittedByEmail,
+            submissionDate: r.submission_date || r.submissionDate,
+            workDescription: r.work_description || r.workDescription,
+            proofLink: r.proof_link || r.proofLink,
+            proofLinks: r.proof_links || r.proofLinks || [],
+            fileSize: r.file_size || r.fileSize,
+            status: r.status,
+            reviewedBy: r.reviewed_by || r.reviewedBy,
+            reviewComments: r.review_comments || r.reviewComments,
+          }));
+        }
+      } catch {}
     }
+    return localProofOfWork;
   },
 
   async submitProofOfWork(pow: Omit<ProofOfWorkRecord, 'id'>): Promise<ProofOfWorkRecord> {
     const newPow = { ...pow, id: 'pow-' + Date.now() };
-    if (!isSupabaseConfigured) {
-      localProofOfWork.unshift(newPow);
-      return newPow;
+    localProofOfWork.unshift(newPow);
+    if (isSupabaseConfigured) {
+      try {
+        await supabase.from('proof_of_work').insert([{
+          id: newPow.id,
+          task_id: newPow.taskId || null,
+          task_title: newPow.taskTitle,
+          submitted_by: newPow.submittedBy,
+          submitted_by_email: newPow.submittedByEmail,
+          submission_date: newPow.submissionDate,
+          work_description: newPow.workDescription,
+          proof_link: newPow.proofLink || null,
+          proof_links: newPow.proofLinks || [],
+          file_size: newPow.fileSize || null,
+          status: newPow.status,
+          reviewed_by: newPow.reviewedBy || null,
+          review_comments: newPow.reviewComments || null,
+        }]);
+      } catch {}
     }
-    try {
-      const dbRecord = {
-        id: newPow.id,
-        task_id: newPow.taskId || null,
-        task_title: newPow.taskTitle,
-        submitted_by: newPow.submittedBy,
-        submitted_by_email: newPow.submittedByEmail,
-        submission_date: newPow.submissionDate,
-        work_description: newPow.workDescription,
-        proof_link: newPow.proofLink || null,
-        proof_links: newPow.proofLinks || [],
-        file_size: newPow.fileSize || null,
-        status: newPow.status,
-        reviewed_by: newPow.reviewedBy || null,
-        review_comments: newPow.reviewComments || null,
-      };
-      const { data, error } = await supabase.from('proof_of_work').insert([dbRecord]).select();
-      if (error || !data) {
-        localProofOfWork.unshift(newPow);
-        return newPow;
-      }
-      return newPow;
-    } catch {
-      localProofOfWork.unshift(newPow);
-      return newPow;
-    }
+    return newPow;
   },
 
   async reviewProofOfWork(id: string, status: 'approved' | 'rejected' | 'revision_requested', comments?: string, reviewer?: string): Promise<void> {
-    if (!isSupabaseConfigured) {
-      localProofOfWork = localProofOfWork.map((p) =>
-        p.id === id ? { ...p, status, reviewComments: comments, reviewedBy: reviewer } : p
-      );
-      return;
-    }
-    try {
-      await supabase
-        .from('proof_of_work')
-        .update({ status, review_comments: comments, reviewed_by: reviewer })
-        .eq('id', id);
-    } catch {
-      localProofOfWork = localProofOfWork.map((p) =>
-        p.id === id ? { ...p, status, reviewComments: comments, reviewedBy: reviewer } : p
-      );
+    localProofOfWork = localProofOfWork.map((p) =>
+      p.id === id ? { ...p, status, reviewComments: comments, reviewedBy: reviewer } : p
+    );
+    if (isSupabaseConfigured) {
+      try {
+        await supabase
+          .from('proof_of_work')
+          .update({ status, review_comments: comments, reviewed_by: reviewer })
+          .eq('id', id);
+      } catch {}
     }
   },
 
   // --- DRIVE DOCUMENTS ---
   async getDriveDocuments(): Promise<DriveDocumentRecord[]> {
-    if (!isSupabaseConfigured) return localDriveDocuments;
-    try {
-      const { data, error } = await supabase.from('drive_documents').select('*');
-      if (error || !data || data.length === 0) return localDriveDocuments;
-      return data.map((r: any) => ({
-        id: r.id,
-        teamFolder: r.team_folder || r.teamFolder,
-        uploadedBy: r.uploaded_by || r.uploadedBy,
-        uploadedByEmail: r.uploaded_by_email || r.uploadedByEmail,
-        fileName: r.file_name || r.fileName,
-        fileSize: r.file_size || r.fileSize,
-        externalLink: r.external_link || r.externalLink,
-        description: r.description || '',
-        uploadedAt: r.uploaded_at || r.uploadedAt,
-      }));
-    } catch {
-      return localDriveDocuments;
+    if (isSupabaseConfigured) {
+      try {
+        const { data, error } = await supabase.from('drive_documents').select('*');
+        if (!error && data && data.length > 0) {
+          return data.map((r: any) => ({
+            id: r.id,
+            teamFolder: r.team_folder || r.teamFolder,
+            uploadedBy: r.uploaded_by || r.uploadedBy,
+            uploadedByEmail: r.uploaded_by_email || r.uploadedByEmail,
+            fileName: r.file_name || r.fileName,
+            fileSize: r.file_size || r.fileSize,
+            externalLink: r.external_link || r.externalLink,
+            description: r.description || '',
+            uploadedAt: r.uploaded_at || r.uploadedAt,
+          }));
+        }
+      } catch {}
     }
+    return localDriveDocuments;
   },
 
   async addDriveDocument(doc: Omit<DriveDocumentRecord, 'id'>): Promise<DriveDocumentRecord> {
     const newDoc = { ...doc, id: 'doc-' + Date.now() };
-    if (!isSupabaseConfigured) {
-      localDriveDocuments.unshift(newDoc);
-      return newDoc;
+    localDriveDocuments.unshift(newDoc);
+    if (isSupabaseConfigured) {
+      try {
+        await supabase.from('drive_documents').insert([{
+          id: newDoc.id,
+          team_folder: newDoc.teamFolder,
+          uploaded_by: newDoc.uploadedBy,
+          uploaded_by_email: newDoc.uploadedByEmail,
+          file_name: newDoc.fileName,
+          file_size: newDoc.fileSize || null,
+          external_link: newDoc.externalLink || null,
+          description: newDoc.description || '',
+          uploaded_at: newDoc.uploadedAt,
+        }]);
+      } catch {}
     }
-    try {
-      const dbRecord = {
-        id: newDoc.id,
-        team_folder: newDoc.teamFolder,
-        uploaded_by: newDoc.uploadedBy,
-        uploaded_by_email: newDoc.uploadedByEmail,
-        file_name: newDoc.fileName,
-        file_size: newDoc.fileSize || null,
-        external_link: newDoc.externalLink || null,
-        description: newDoc.description || '',
-        uploaded_at: newDoc.uploadedAt,
-      };
-      const { data, error } = await supabase.from('drive_documents').insert([dbRecord]).select();
-      if (error || !data) {
-        localDriveDocuments.unshift(newDoc);
-        return newDoc;
-      }
-      return newDoc;
-    } catch {
-      localDriveDocuments.unshift(newDoc);
-      return newDoc;
-    }
+    return newDoc;
   },
 
   // --- DRIVE ACCESS GRANTS ---
   async getDriveAccessGrants(): Promise<DriveAccessGrantRecord[]> {
-    if (!isSupabaseConfigured) return localDriveAccessGrants;
-    try {
-      const { data, error } = await supabase.from('drive_access_grants').select('*');
-      if (error || !data || data.length === 0) return localDriveAccessGrants;
-      return data.map((r: any) => ({
-        id: r.id,
-        grantedTo: r.granted_to || r.grantedTo,
-        grantedToEmail: r.granted_to_email || r.grantedToEmail,
-        grantedBy: r.granted_by || r.grantedBy,
-        folders: r.folders || [],
-        grantedAt: r.granted_at || r.grantedAt,
-      }));
-    } catch {
-      return localDriveAccessGrants;
+    if (isSupabaseConfigured) {
+      try {
+        const { data, error } = await supabase.from('drive_access_grants').select('*');
+        if (!error && data && data.length > 0) {
+          return data.map((r: any) => ({
+            id: r.id,
+            grantedTo: r.granted_to || r.grantedTo,
+            grantedToEmail: r.granted_to_email || r.grantedToEmail,
+            grantedBy: r.granted_by || r.grantedBy,
+            folders: r.folders || [],
+            grantedAt: r.granted_at || r.grantedAt,
+          }));
+        }
+      } catch {}
     }
+    return localDriveAccessGrants;
   },
 
   async grantDriveAccess(grant: Omit<DriveAccessGrantRecord, 'id'>): Promise<void> {
     const newGrant = { ...grant, id: 'grant-' + Date.now() };
-    if (!isSupabaseConfigured) {
-      localDriveAccessGrants.push(newGrant);
-      return;
-    }
-    try {
-      const dbRecord = {
-        id: newGrant.id,
-        granted_to: newGrant.grantedTo,
-        granted_to_email: newGrant.grantedToEmail,
-        granted_by: newGrant.grantedBy,
-        folders: newGrant.folders || [],
-        granted_at: newGrant.grantedAt,
-      };
-      await supabase.from('drive_access_grants').insert([dbRecord]);
-    } catch {
-      localDriveAccessGrants.push(newGrant);
+    localDriveAccessGrants.push(newGrant);
+    if (isSupabaseConfigured) {
+      try {
+        await supabase.from('drive_access_grants').insert([{
+          id: newGrant.id,
+          granted_to: newGrant.grantedTo,
+          granted_to_email: newGrant.grantedToEmail,
+          granted_by: newGrant.grantedBy,
+          folders: newGrant.folders || [],
+          granted_at: newGrant.grantedAt,
+        }]);
+      } catch {}
     }
   },
 
   // --- NOTIFICATIONS ---
   async getNotifications(userId: string): Promise<NotificationRecord[]> {
-    if (!isSupabaseConfigured) {
-      return localNotifications.filter((n) => n.userId === userId || n.userId === 'all');
+    if (isSupabaseConfigured) {
+      try {
+        const { data, error } = await supabase
+          .from('notifications')
+          .select('*')
+          .or(`user_id.eq.${userId},user_id.eq.all`);
+        if (!error && data && data.length > 0) {
+          return data.map((r: any) => ({
+            id: r.id,
+            userId: r.user_id || r.userId,
+            title: r.title,
+            message: r.message,
+            type: r.type,
+            isRead: r.is_read ?? r.isRead ?? false,
+            createdAt: r.created_at || r.createdAt,
+            link: r.link,
+          }));
+        }
+      } catch {}
     }
-    try {
-      const { data, error } = await supabase
-        .from('notifications')
-        .select('*')
-        .or(`user_id.eq.${userId},user_id.eq.all`);
-      if (error || !data || data.length === 0) {
-        return localNotifications.filter((n) => n.userId === userId || n.userId === 'all');
-      }
-      return data.map((r: any) => ({
-        id: r.id,
-        userId: r.user_id || r.userId,
-        title: r.title,
-        message: r.message,
-        type: r.type,
-        isRead: r.is_read ?? r.isRead ?? false,
-        createdAt: r.created_at || r.createdAt,
-        link: r.link,
-      }));
-    } catch {
-      return localNotifications.filter((n) => n.userId === userId || n.userId === 'all');
-    }
+    return localNotifications.filter((n) => n.userId === userId || n.userId === 'all');
   },
 
   async markNotificationRead(id: string): Promise<void> {
-    if (!isSupabaseConfigured) {
-      localNotifications = localNotifications.map((n) => (n.id === id ? { ...n, isRead: true } : n));
-      return;
-    }
-    try {
-      await supabase.from('notifications').update({ is_read: true }).eq('id', id);
-    } catch {
-      localNotifications = localNotifications.map((n) => (n.id === id ? { ...n, isRead: true } : n));
+    localNotifications = localNotifications.map((n) => (n.id === id ? { ...n, isRead: true } : n));
+    if (isSupabaseConfigured) {
+      try {
+        await supabase.from('notifications').update({ is_read: true }).eq('id', id);
+      } catch {}
     }
   },
 
   // --- REAL-TIME SUBSCRIPTION HELPER ---
   subscribeToChanges(table: string, callback: () => void): () => void {
     if (!isSupabaseConfigured) return () => {};
-    const channel = supabase
-      .channel(`realtime_${table}_${Date.now()}`)
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table },
-        () => {
-          callback();
-        }
-      )
-      .subscribe();
+    try {
+      const channel = supabase
+        .channel(`realtime_${table}_${Date.now()}`)
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table },
+          () => {
+            callback();
+          }
+        )
+        .subscribe();
 
-    return () => {
-      supabase.removeChannel(channel);
-    };
+      return () => {
+        supabase.removeChannel(channel);
+      };
+    } catch {
+      return () => {};
+    }
   },
 };

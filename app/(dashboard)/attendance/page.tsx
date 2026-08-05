@@ -36,7 +36,8 @@ export default function AttendancePage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
 
-  const today = new Date().toISOString().split('T')[0];
+  const d = new Date();
+  const today = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 
   const [todayAttendance, setTodayAttendance] = useState<AttendanceRecord[]>([]);
   const [activeLeavesToday, setActiveLeavesToday] = useState<LeaveRequest[]>([]);
