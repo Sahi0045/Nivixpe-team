@@ -108,7 +108,26 @@ export default function AttendancePage() {
     if (!user) return;
     const loginTime = new Date().toTimeString().split(' ')[0].substring(0, 5);
     try {
-      await supabaseDb.markAttendance({ date: today, email: user.email, loginTime, status: 'present' });
+      if (myAttendance) {
+        // Resume: keep accumulated workHours, start new session
+        await supabaseDb.markAttendance({
+          ...myAttendance,
+          currentSessionStart: loginTime,
+          isPaused: false,
+          logoutTime: undefined,
+        });
+      } else {
+        // First login of the day
+        await supabaseDb.markAttendance({
+          date: today,
+          email: user.email,
+          loginTime,
+          status: 'present',
+          currentSessionStart: loginTime,
+          isPaused: false,
+          workHours: 0,
+        });
+      }
       await loadData();
       toast.success(`Logged in at ${loginTime}. Minimum 4h required.`);
     } catch (err) {
@@ -120,9 +139,25 @@ export default function AttendancePage() {
     if (!user || !myAttendance) return;
     const logoutTime = new Date().toTimeString().split(' ')[0].substring(0, 5);
     try {
-      await supabaseDb.markAttendance({ ...myAttendance, logoutTime });
+      // Accumulate session minutes before pausing
+      const sessionStart = (myAttendance as any).currentSessionStart || myAttendance.loginTime || '00:00';
+      const [sh, sm] = sessionStart.split(':').map(Number);
+      const n = new Date();
+      let s = sh * 60 + sm;
+      let c = n.getHours() * 60 + n.getMinutes();
+      if (c < s) c += 1440;
+      const sessionMinsNow = Math.max(0, c - s);
+      const accumulated = (myAttendance.workHours || 0) + sessionMinsNow;
+
+      await supabaseDb.markAttendance({
+        ...myAttendance,
+        logoutTime,
+        workHours: accumulated,
+        currentSessionStart: undefined,
+        isPaused: true,
+      });
       await loadData();
-      toast.success(`Logged out at ${logoutTime}.`);
+      toast.success(`Logged out at ${logoutTime}. Total: ${fmt(accumulated)}`);
     } catch {
       toast.error('Failed to log out.');
     }
