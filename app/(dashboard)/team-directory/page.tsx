@@ -11,6 +11,7 @@ import { DriveFolder, DRIVE_FOLDERS } from '@/lib/drive-access';
 import { supabaseDb, AttendanceRecord, TeamMember } from '@/lib/supabase-db';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
+import { normalizeEmail } from '@/lib/utils';
 
 export default function TeamDirectoryPage() {
   const { user } = useAuth();
@@ -30,7 +31,13 @@ export default function TeamDirectoryPage() {
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
 
   const loadData = () => {
-    supabaseDb.getTeamMembers().then(setTeamMembers as any);
+    supabaseDb.getTeamMembers().then((res) => {
+      const normalized = res.map(m => ({
+        ...m,
+        email: normalizeEmail(m.email)
+      }));
+      setTeamMembers(normalized as any);
+    });
   };
 
   useEffect(() => {
@@ -303,10 +310,16 @@ function AttendanceModal({ member, onClose, currentUser }: { member: TeamMember,
 
   useEffect(() => {
     supabaseDb.getAttendanceRecords().then((res) => {
-      setAttendanceRecords(res.filter((r) => r.email === member.email));
+      const normMemberEmail = normalizeEmail(member.email);
+      setAttendanceRecords(
+        res.filter((r) => normalizeEmail(r.email) === normMemberEmail)
+      );
     });
     supabaseDb.getDriveAccessGrants().then((grants) => {
-      const g = grants.find((gr) => gr.grantedToEmail === member.email || gr.grantedTo === member.name);
+      const normMemberEmail = normalizeEmail(member.email);
+      const g = grants.find(
+        (gr) => normalizeEmail(gr.grantedToEmail) === normMemberEmail || gr.grantedTo === member.name
+      );
       if (g) setSelectedFolders(g.folders);
     });
   }, [member.email, member.name]);

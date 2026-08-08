@@ -9,11 +9,14 @@ import { KPICard } from '@/components/kpi-card';
 import { ActivityFeed } from '@/components/activity-feed';
 import { Users, CheckCircle, Clock, CheckSquare, Calendar, LinkIcon } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import { normalizeEmail } from '@/lib/utils';
 
 export default function DashboardPage() {
   const { user } = useAuth();
   const router = useRouter();
-  const today = new Date().toISOString().split('T')[0];
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const d = new Date();
+  const today = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 
   const [allTasks, setAllTasks] = useState<WorkTask[]>([]);
   const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([]);
@@ -30,10 +33,19 @@ export default function DashboardPage() {
       supabaseDb.getTeamMembers(),
     ]).then(([t, a, p, m, tm]) => {
       setAllTasks(t);
-      setAttendanceRecords(a.filter((r) => r.date === today));
+      // Normalize emails
+      const normalizedA = a.map(r => ({
+        ...r,
+        email: normalizeEmail(r.email)
+      }));
+      const normalizedTm = tm.map(mem => ({
+        ...mem,
+        email: normalizeEmail(mem.email)
+      }));
+      setAttendanceRecords(normalizedA.filter((r) => r.date === today));
       setAllProofOfWork(p);
       setMeetings(m);
-      setTeamMembers(tm as any);
+      setTeamMembers(normalizedTm as any);
     });
   };
 

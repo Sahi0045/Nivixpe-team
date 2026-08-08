@@ -31,7 +31,7 @@ import {
   Bar,
   Cell,
 } from 'recharts';
-import { cn } from '@/lib/utils';
+import { cn, normalizeEmail } from '@/lib/utils';
 
 /* ─── helpers ────────────────────────────────────────────── */
 const fmt = (mins: number) => `${Math.floor(mins / 60)}h ${mins % 60}m`;
@@ -62,8 +62,16 @@ export default function AttendanceHistoryPage() {
   useEffect(() => {
     Promise.all([supabaseDb.getAttendanceRecords(), supabaseDb.getTeamMembers()]).then(
       ([history, members]) => {
-        setAllHistory(history);
-        setRawMembers(members as any);
+        const normalizedHistory = history.map(r => ({
+          ...r,
+          email: normalizeEmail(r.email)
+        }));
+        const normalizedMembers = members.map(m => ({
+          ...m,
+          email: normalizeEmail(m.email)
+        }));
+        setAllHistory(normalizedHistory);
+        setRawMembers(normalizedMembers as any);
       }
     );
   }, []);

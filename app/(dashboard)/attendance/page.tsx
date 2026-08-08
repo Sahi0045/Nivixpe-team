@@ -22,7 +22,7 @@ import {
   PlayCircle,
   PauseCircle,
 } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { cn, normalizeEmail } from '@/lib/utils';
 import { isNightShiftWorker, getAttendanceShiftNote, NIGHT_SHIFT_START } from '@/lib/attendance-shift';
 import { toast } from 'sonner';
 
@@ -47,9 +47,24 @@ export default function AttendancePage() {
     const records = await supabaseDb.getAttendanceRecords();
     const leaves = await supabaseDb.getLeaveRequests();
     const members = await supabaseDb.getTeamMembers();
-    setTodayAttendance(records.filter((a) => a.date === today));
-    setActiveLeavesToday(leaves.filter((l) => l.status === 'approved' && l.startDate <= today && l.endDate >= today));
-    setAllMembers(members as any);
+
+    // Normalize emails
+    const normalizedRecords = records.map(r => ({
+      ...r,
+      email: normalizeEmail(r.email)
+    }));
+    const normalizedLeaves = leaves.map(l => ({
+      ...l,
+      employeeEmail: normalizeEmail(l.employeeEmail)
+    }));
+    const normalizedMembers = members.map(m => ({
+      ...m,
+      email: normalizeEmail(m.email)
+    }));
+
+    setTodayAttendance(normalizedRecords.filter((a) => a.date === today));
+    setActiveLeavesToday(normalizedLeaves.filter((l) => l.status === 'approved' && l.startDate <= today && l.endDate >= today));
+    setAllMembers(normalizedMembers as any);
   };
 
   useEffect(() => {
@@ -62,7 +77,7 @@ export default function AttendancePage() {
     };
   }, [today]);
 
-  const myAttendance = todayAttendance.find(a => a.email === user?.email);
+  const myAttendance = todayAttendance.find(a => a.email === (user?.email ? normalizeEmail(user.email) : ''));
 
   /* ── Tick every second ── */
   useEffect(() => {
@@ -94,12 +109,50 @@ export default function AttendancePage() {
 
   /* ── Summary counts ── */
   const activeMembers = allMembers.filter(m => m.status === 'active');
-  const presentCount = todayAttendance.filter(a => a.status === 'present').length;
-  const onLeaveCount = activeLeavesToday.length;
-  const markedEmails = new Set(todayAttendance.map(a => a.email));
-  const leaveEmails = new Set(activeLeavesToday.map(l => l.employeeEmail));
-  const absentCount = activeMembers.filter(m => !markedEmails.has(m.email) && !leaveEmails.has(m.email)).length;
-  const belowMinCount = todayAttendance.filter(
+
+  // Construct a virtual list of attendance records for all active members + any extra records
+  const activeEmails = new Set(activeMembers.map(m => m.email.toLowerCase()));
+  const extraRecords = todayAttendance
+    .filter(a => !activeEmails.has(a.email.toLowerCase()))
+    .map(a => ({
+      ...a,
+      name: allMembers.find(m => m.email.toLowerCase() === a.email.toLowerCase())?.name || a.email,
+    }));
+
+  const allActiveAttendance = activeMembers.map(member => {
+    const existing = todayAttendance.find(a => a.email.toLowerCase() === member.email.toLowerCase());
+    if (existing) {
+      return {
+        ...existing,
+        name: member.name,
+      };
+    }
+    
+    const leave = activeLeavesToday.find(l => l.employeeEmail.toLowerCase() === member.email.toLowerCase());
+    if (leave) {
+      return {
+        email: member.email,
+        date: today,
+        status: 'onLeave' as const,
+        approval: leave.approvedBy || 'Approved',
+        name: member.name,
+      };
+    }
+    
+    return {
+      email: member.email,
+      date: today,
+      status: 'absent' as const,
+      name: member.name,
+    };
+  });
+
+  const combinedAttendance = [...allActiveAttendance, ...extraRecords];
+
+  const presentCount = combinedAttendance.filter(a => a.status === 'present').length;
+  const onLeaveCount = combinedAttendance.filter(a => a.status === 'onLeave').length;
+  const absentCount = combinedAttendance.filter(a => a.status === 'absent').length;
+  const belowMinCount = combinedAttendance.filter(
     a => a.status === 'present' && a.workHours !== undefined && a.workHours < 240
   ).length;
 
@@ -164,8 +217,8 @@ export default function AttendancePage() {
   };
 
   /* ── Filtered table data ── */
-  const filteredAttendance = todayAttendance.filter(r => {
-    const memberName = allMembers.find(m => m.email === r.email)?.name || r.email;
+  const filteredAttendance = combinedAttendance.filter(r => {
+    const memberName = r.name || allMembers.find(m => m.email === r.email)?.name || r.email;
     const matchSearch = r.email.toLowerCase().includes(searchTerm.toLowerCase()) || memberName.toLowerCase().includes(searchTerm.toLowerCase());
     const matchStatus = statusFilter === 'all' || r.status === statusFilter;
     return matchSearch && matchStatus;
@@ -527,7 +580,7 @@ export default function AttendancePage() {
                       const mins = liveMinutes(record);
                       const isSufficient = mins >= 240;
                       const isActiveRow = (record as any).currentSessionStart && !(record as any).isPaused;
-                      const memberName = allMembers.find(m => m.email === record.email)?.name || record.email;
+                      const memberName = record.name || allMembers.find(m => m.email === record.email)?.name || record.email;
                       return (
                         <tr key={record.email + record.date}>
                           <td>

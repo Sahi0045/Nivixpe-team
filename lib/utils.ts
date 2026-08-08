@@ -56,3 +56,32 @@ export function isLate(time: string): boolean {
 export function getInitials(firstName: string, lastName: string): string {
   return `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase();
 }
+
+export function normalizeEmail(email: string): string {
+  if (!email) return '';
+  const clean = email.trim().toLowerCase();
+  
+  const aliasMap: Record<string, string> = {
+    'ceo@nivixpe.com': 'sahith@nivixpe.com',
+    'cto@nivixpe.com': 'shubhamc@nivixpe.com',
+    'cso@nivixpe.com': 'swaraag@nivixpe.com',
+    'dcso@nivixpe.com': 'ujjwal@nivixpe.com',
+    'dcmo@nivixpe.com': 'n-wkw@nivixpe.com',
+    'bhavika@nivixpe.com': 'n-wkw@nivixpe.com',
+    'bhavikad@nivixpe.com': 'n-wkw@nivixpe.com',
+    'coo@nivixpe.com': 'siddharatha@nivixpe.com',
+    'legal@nivixpe.com': 'kashish@nivixpe.com',
+    'legal1@nivixpe.com': 'kashish@nivixpe.com',
+    'legal2@nivixpe.com': 'vinisha@nivixpe.com',
+    'designer1@nivixpe.com': 'aradhya@nivixpe.com',
+    'designer2@nivixpe.com': 'rudra@nivixpe.com',
+    'developer1@nivixpe.com': 'nguyen@nivixpe.com',
+    'developer2@nivixpe.com': 'shubham@nivixpe.com',
+    'developer3@nivixpe.com': 'nithin@nivixpe.com',
+    'pm@nivixpe.com': 'aryan@nivixpe.com',
+    'productmanager@nivix.com': 'aryan@nivixpe.com',
+  };
+  
+  return aliasMap[clean] || clean;
+}
+
