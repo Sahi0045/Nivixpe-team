@@ -40,17 +40,31 @@ export interface AttendanceRecord {
   currentSessionStart?: string;
 }
 
+export interface LeaveAuditLog {
+  timestamp: string;
+  action: string;
+  actor: string;
+  details?: string;
+}
+
 export interface LeaveRequest {
   id: string;
   employeeName: string;
   employeeEmail: string;
   startDate: string;
   endDate: string;
+  days?: number;
   reason: string;
-  status: 'pending' | 'approved' | 'rejected';
-  type: 'vacation' | 'sick' | 'personal';
+  status: 'pending' | 'approved' | 'rejected' | 'cancelled';
+  type: 'casual' | 'sick' | 'annual' | 'emergency' | 'unpaid' | 'other' | 'vacation' | 'personal';
   approvedBy?: string;
+  rejectionReason?: string;
+  attachmentUrl?: string;
+  comment?: string;
+  appliedAt?: string;
+  auditLog?: LeaveAuditLog[];
 }
+
 
 export interface Meeting {
   id: string;

@@ -252,6 +252,22 @@ export function canApprovePoW(user: User | null): boolean {
   return user.isSuperAdmin || user.role === 'CTO' || user.role === 'COO' || user.role === 'Product Manager';
 }
 
+export function canApproveLeave(user: User | null): boolean {
+  if (!user) return false;
+  // CEO, CTO, COO, CSO, Product Manager, or Admin can approve leave requests
+  return (
+    user.isSuperAdmin ||
+    user.role === 'CTO' ||
+    user.role === 'COO' ||
+    user.role === 'CSO' ||
+    user.role === 'Product Manager' ||
+    user.role === 'Admin' ||
+    user.accessLevel === 'admin' ||
+    user.accessLevel === 'manager'
+  );
+}
+
+
 export function canAssignTasksTo(user: User | null, targetMember: any): boolean {
   if (!user) return false;
   

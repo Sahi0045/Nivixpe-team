@@ -100,7 +100,102 @@ let localTeamMembers: TeamMember[] = [
 
 let localWorkTasks: WorkTask[] = [];
 let localAttendanceRecords: AttendanceRecord[] = [];
-let localLeaveRequests: LeaveRequest[] = [];
+let localLeaveRequests: LeaveRequest[] = [
+  {
+    id: 'leave-101',
+    employeeName: 'Ngan Nguyen',
+    employeeEmail: 'nguyen@nivixpe.com',
+    startDate: '2026-08-18',
+    endDate: '2026-08-20',
+    days: 3,
+    reason: 'Family event and personal work',
+    status: 'approved',
+    type: 'casual',
+    approvedBy: 'Sahith',
+    appliedAt: '2026-08-05T10:00:00Z',
+    auditLog: [
+      { timestamp: '2026-08-05T10:00:00Z', action: 'Submitted', actor: 'Ngan Nguyen', details: 'Applied for 3 days Casual leave' },
+      { timestamp: '2026-08-05T14:30:00Z', action: 'Approved', actor: 'Sahith', details: 'Approved by CEO' }
+    ]
+  },
+  {
+    id: 'leave-102',
+    employeeName: 'Vinisha',
+    employeeEmail: 'vinisha@nivixpe.com',
+    startDate: '2026-08-24',
+    endDate: '2026-08-25',
+    days: 2,
+    reason: 'Medical checkup',
+    status: 'pending',
+    type: 'sick',
+    appliedAt: '2026-08-09T09:15:00Z',
+    auditLog: [
+      { timestamp: '2026-08-09T09:15:00Z', action: 'Submitted', actor: 'Vinisha', details: 'Applied for 2 days Sick leave' }
+    ]
+  }
+];
+
+export function calculateWorkingDays(startDateStr: string, endDateStr: string): number {
+  if (!startDateStr || !endDateStr) return 0;
+  const start = new Date(startDateStr);
+  const end = new Date(endDateStr);
+  if (isNaN(start.getTime()) || isNaN(end.getTime()) || start > end) return 0;
+
+  let count = 0;
+  const current = new Date(start);
+  while (current <= end) {
+    const dayOfWeek = current.getDay();
+    // Exclude Saturday (6) and Sunday (0)
+    if (dayOfWeek !== 0 && dayOfWeek !== 6) {
+      count++;
+    }
+    current.setDate(current.getDate() + 1);
+  }
+  return count;
+}
+
+export function getUserLeaveBalance(emailOrName: string, requests: LeaveRequest[]) {
+  const normInput = normalizeName(emailOrName);
+  const userRequests = requests.filter(
+    (r) => normalizeEmail(r.employeeEmail) === normalizeEmail(emailOrName) || normalizeName(r.employeeName) === normInput
+  );
+
+  const allocated = {
+    annual: 20,
+    sick: 10,
+    casual: 7,
+    total: 37,
+  };
+
+  let used = 0;
+  let pending = 0;
+  let approvedUpcoming = 0;
+
+  const todayStr = new Date().toISOString().split('T')[0];
+
+  userRequests.forEach((r) => {
+    const d = r.days || calculateWorkingDays(r.startDate, r.endDate) || 1;
+    if (r.status === 'approved') {
+      used += d;
+      if (r.startDate > todayStr) {
+        approvedUpcoming += d;
+      }
+    } else if (r.status === 'pending') {
+      pending += d;
+    }
+  });
+
+  const remaining = Math.max(0, allocated.total - used);
+
+  return {
+    allocated,
+    used,
+    pending,
+    approvedUpcoming,
+    remaining,
+  };
+}
+
 let localMeetings: Meeting[] = [];
 let localProofOfWork: ProofOfWorkRecord[] = [];
 let localDriveDocuments: DriveDocumentRecord[] = [
@@ -1367,10 +1462,16 @@ export const supabaseDb = {
             employeeEmail: r.employee_email || r.employeeEmail,
             startDate: r.start_date || r.startDate,
             endDate: r.end_date || r.endDate,
+            days: r.days || calculateWorkingDays(r.start_date || r.startDate, r.end_date || r.endDate),
             reason: r.reason,
             status: r.status,
             type: r.type,
             approvedBy: r.approved_by || r.approvedBy,
+            rejectionReason: r.rejection_reason || r.rejectionReason,
+            attachmentUrl: r.attachment_url || r.attachmentUrl,
+            comment: r.comment,
+            appliedAt: r.applied_at || r.appliedAt,
+            auditLog: r.audit_log || r.auditLog || [],
           }));
         }
       } catch (e) { console.warn('[supabaseDb] getLeaveRequests exception:', e); }
@@ -1379,8 +1480,41 @@ export const supabaseDb = {
   },
 
   async createLeaveRequest(req: Omit<LeaveRequest, 'id'>): Promise<LeaveRequest> {
-    const newReq = { ...req, id: 'leave-' + Date.now() };
+    const days = req.days || calculateWorkingDays(req.startDate, req.endDate) || 1;
+    const timestamp = new Date().toISOString();
+    
+    // Check overlapping requests for same employee
+    const normEmail = normalizeEmail(req.employeeEmail);
+    const hasOverlap = localLeaveRequests.some((existing) => {
+      if (existing.status === 'cancelled' || existing.status === 'rejected') return false;
+      if (normalizeEmail(existing.employeeEmail) !== normEmail && normalizeName(existing.employeeName) !== normalizeName(req.employeeName)) return false;
+      return req.startDate <= existing.endDate && req.endDate >= existing.startDate;
+    });
+
+    if (hasOverlap) {
+      throw new Error('You already have an active leave request covering these dates.');
+    }
+
+    const auditLog = [
+      {
+        timestamp,
+        action: 'Submitted',
+        actor: req.employeeName,
+        details: `Submitted ${days} day(s) ${req.type} leave request (${req.startDate} to ${req.endDate}).`,
+      },
+    ];
+
+    const newReq: LeaveRequest = {
+      ...req,
+      id: 'leave-' + Date.now(),
+      days,
+      appliedAt: timestamp,
+      auditLog,
+    };
+
     localLeaveRequests.unshift(newReq);
+    notifySubscribers('leave_requests');
+
     if (isSupabaseConfigured) {
       try {
         const { error } = await supabase.from('leave_requests').insert([{
@@ -1389,10 +1523,16 @@ export const supabaseDb = {
           employee_email: newReq.employeeEmail,
           start_date: newReq.startDate,
           end_date: newReq.endDate,
+          days: newReq.days,
           reason: newReq.reason,
           status: newReq.status,
           type: newReq.type,
           approved_by: newReq.approvedBy || null,
+          rejection_reason: newReq.rejectionReason || null,
+          attachment_url: newReq.attachmentUrl || null,
+          comment: newReq.comment || null,
+          applied_at: newReq.appliedAt,
+          audit_log: newReq.auditLog,
         }]);
         if (error) console.warn('[supabaseDb] createLeaveRequest error:', error.message);
       } catch (e) { console.warn('[supabaseDb] createLeaveRequest exception:', e); }
@@ -1400,15 +1540,50 @@ export const supabaseDb = {
     return newReq;
   },
 
-  async updateLeaveStatus(id: string, status: 'approved' | 'rejected'): Promise<void> {
-    localLeaveRequests = localLeaveRequests.map((l) => (l.id === id ? { ...l, status } : l));
+  async updateLeaveStatus(id: string, status: 'approved' | 'rejected' | 'cancelled', approverOrActorName?: string, rejectionReason?: string): Promise<void> {
+    const timestamp = new Date().toISOString();
+    const actor = approverOrActorName || 'System';
+
+    localLeaveRequests = localLeaveRequests.map((l) => {
+      if (l.id === id) {
+        const auditLog = l.auditLog || [];
+        const actionLabel = status.charAt(0).toUpperCase() + status.slice(1);
+        const detailsText = status === 'rejected' ? `Rejected: ${rejectionReason || 'No reason specified'}` : `${actionLabel} leave request`;
+        const newLogEntry = {
+          timestamp,
+          action: actionLabel,
+          actor,
+          details: detailsText,
+        };
+        return {
+          ...l,
+          status,
+          approvedBy: status === 'approved' ? actor : l.approvedBy,
+          rejectionReason: status === 'rejected' ? (rejectionReason || l.rejectionReason) : l.rejectionReason,
+          auditLog: [newLogEntry, ...auditLog],
+        };
+      }
+      return l;
+    });
+
+    notifySubscribers('leave_requests');
+
     if (isSupabaseConfigured) {
       try {
-        const { error } = await supabase.from('leave_requests').update({ status }).eq('id', id);
+        const { error } = await supabase.from('leave_requests').update({
+          status,
+          approved_by: status === 'approved' ? actor : null,
+          rejection_reason: status === 'rejected' ? rejectionReason : null,
+        }).eq('id', id);
         if (error) console.warn('[supabaseDb] updateLeaveStatus error:', error.message);
       } catch (e) { console.warn('[supabaseDb] updateLeaveStatus exception:', e); }
     }
   },
+
+  async cancelLeaveRequest(id: string, actorName: string): Promise<void> {
+    await this.updateLeaveStatus(id, 'cancelled', actorName, 'Cancelled by employee');
+  },
+
 
   // --- MEETINGS ---
   async getMeetings(): Promise<Meeting[]> {

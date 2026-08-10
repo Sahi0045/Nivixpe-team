@@ -54,11 +54,18 @@ CREATE TABLE IF NOT EXISTS leave_requests (
     employee_email TEXT NOT NULL,
     start_date TEXT NOT NULL,
     end_date TEXT NOT NULL,
+    days INTEGER DEFAULT 1,
     reason TEXT NOT NULL,
-    status TEXT NOT NULL CHECK (status IN ('pending', 'approved', 'rejected')),
-    type TEXT NOT NULL CHECK (type IN ('vacation', 'sick', 'personal')),
-    approved_by TEXT
+    status TEXT NOT NULL CHECK (status IN ('pending', 'approved', 'rejected', 'cancelled')),
+    type TEXT NOT NULL CHECK (type IN ('casual', 'sick', 'annual', 'emergency', 'unpaid', 'other', 'vacation', 'personal')),
+    approved_by TEXT,
+    rejection_reason TEXT,
+    attachment_url TEXT,
+    comment TEXT,
+    applied_at TEXT,
+    audit_log JSONB
 );
+
 
 -- 5. Meetings Table
 CREATE TABLE IF NOT EXISTS meetings (
