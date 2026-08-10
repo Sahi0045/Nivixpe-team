@@ -263,17 +263,27 @@ export default function AttendanceHistoryPage() {
     });
   }, [authorizedMembers, filterRole, filterTeam, filterPerson]);
 
-  // Matrix Top Summary Cards Metrics
-  const matrixSummaryMetrics = useMemo(() => {
-    let present = 0;
-    let late = 0;
-    let leave = 0;
-    let absent = 0;
+  // High-Impact Executive KPI Cards Metrics
+  const executiveKpiMetrics = useMemo(() => {
+    const todayStr = new Date().toISOString().split('T')[0];
+
+    const todayCheckedInCount = matrixRowsMembers.filter((member) => {
+      const rec = allAttendance.find(
+        (r) =>
+          r.date === todayStr &&
+          (normalizeEmail(r.email) === normalizeEmail(member.email) || normalizeName(r.name || '') === normalizeName(member.name))
+      );
+      return rec && (rec.status === 'present' || rec.status === 'late' || rec.status === 'halfDay');
+    }).length;
+
+    let totalWorkingSlots = 0;
+    let attendedSlots = 0;
     let totalWorkMins = 0;
 
     matrixRowsMembers.forEach((member) => {
       dateColumns.forEach((col) => {
         if (col.isWeekend) return;
+        totalWorkingSlots++;
 
         const rec = allAttendance.find(
           (r) =>
@@ -282,13 +292,8 @@ export default function AttendanceHistoryPage() {
         );
 
         if (rec) {
-          if (filterStatus !== 'all' && rec.status !== filterStatus) return;
-
-          if (rec.status === 'present') present++;
-          else if (rec.status === 'late') late++;
-          else if (rec.status === 'halfDay') { present += 0.5; }
-          else if (rec.status === 'onLeave') leave++;
-          else if (rec.status === 'absent') absent++;
+          if (rec.status === 'present' || rec.status === 'late') attendedSlots++;
+          else if (rec.status === 'halfDay') attendedSlots += 0.5;
 
           if (rec.workHours && rec.workHours > 0) {
             totalWorkMins += rec.workHours;
@@ -297,20 +302,23 @@ export default function AttendanceHistoryPage() {
       });
     });
 
-    const totalWorkingDaysCount = Math.max(1, present + late + leave);
+    const complianceRate = totalWorkingSlots > 0 ? Math.round((attendedSlots / Math.max(1, totalWorkingSlots)) * 100) : 100;
+    const totalWorkingDaysCount = Math.max(1, attendedSlots);
     const avgWorkMins = totalWorkingDaysCount > 0 ? Math.round(totalWorkMins / totalWorkingDaysCount) : 0;
     const avgHours = Math.floor(avgWorkMins / 60);
     const avgMins = avgWorkMins % 60;
 
+    const pendingCorrectionsCount = allCorrections.filter((c) => c.status === 'pending').length;
+
     return {
-      totalEmployees: matrixRowsMembers.length,
-      present,
-      late,
-      leave,
-      absent,
+      activeTeamSize: matrixRowsMembers.length,
+      todayCheckedInCount,
+      complianceRate,
       formattedAvgHours: `${avgHours}h ${avgMins}m`,
+      pendingCorrectionsCount,
     };
-  }, [matrixRowsMembers, dateColumns, allAttendance, filterStatus]);
+  }, [matrixRowsMembers, dateColumns, allAttendance, allCorrections]);
+
 
   // Per-Employee Aggregate Breakdown Summary
   const employeeSummaryRows = useMemo(() => {
@@ -704,68 +712,75 @@ export default function AttendanceHistoryPage() {
         {/* TAB 1: MAIN DATE-WISE ATTENDANCE MATRIX */}
         {activeTab === 'matrix' && canManageTeam && (
           <div className="space-y-6">
-            {/* VIBRANT TOP SUMMARY STATS CARDS */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3.5">
-              <Card className="border-slate-200/80 bg-gradient-to-br from-white to-slate-50/50 shadow-sm hover:shadow-md transition-all">
-                <CardContent className="pt-4 p-3 text-center space-y-1">
-                  <div className="h-8 w-8 mx-auto rounded-full bg-slate-100 flex items-center justify-center text-slate-700 mb-1">
-                    <Users className="h-4 w-4" />
+            {/* HIGH-VALUE EXECUTIVE KPI CARDS */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <Card className="border-indigo-100 bg-gradient-to-br from-white via-indigo-50/30 to-slate-50 shadow-sm hover:shadow-md transition-all">
+                <CardContent className="pt-4 p-4 flex items-center justify-between">
+                  <div className="space-y-1">
+                    <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Active Team Scope</p>
+                    <p className="text-2xl font-black text-slate-900">{executiveKpiMetrics.activeTeamSize} Members</p>
+                    <p className="text-[11px] font-semibold text-indigo-700 flex items-center gap-1">
+                      <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+                      {executiveKpiMetrics.todayCheckedInCount} / {executiveKpiMetrics.activeTeamSize} Checked-In Today
+                    </p>
                   </div>
-                  <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Total Employees</p>
-                  <p className="text-2xl font-black text-slate-900">{matrixSummaryMetrics.totalEmployees}</p>
+                  <div className="h-12 w-12 rounded-2xl bg-indigo-100/80 text-indigo-700 flex items-center justify-center shrink-0 shadow-inner">
+                    <Users className="h-6 w-6" />
+                  </div>
                 </CardContent>
               </Card>
 
-              <Card className="border-emerald-200/80 bg-gradient-to-br from-emerald-50/70 to-teal-50/40 shadow-sm hover:shadow-md transition-all">
-                <CardContent className="pt-4 p-3 text-center space-y-1">
-                  <div className="h-8 w-8 mx-auto rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center mb-1">
-                    <CheckCircle className="h-4 w-4" />
+              <Card className="border-emerald-100 bg-gradient-to-br from-white via-emerald-50/30 to-teal-50/20 shadow-sm hover:shadow-md transition-all">
+                <CardContent className="pt-4 p-4 flex items-center justify-between">
+                  <div className="space-y-1">
+                    <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Attendance Compliance</p>
+                    <p className="text-2xl font-black text-emerald-950">{executiveKpiMetrics.complianceRate}%</p>
+                    <span className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
+                      executiveKpiMetrics.complianceRate >= 85
+                        ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                        : 'bg-amber-100 text-amber-800 border-amber-300'
+                    }`}>
+                      {executiveKpiMetrics.complianceRate >= 85 ? 'High Compliance' : 'Review Scope'}
+                    </span>
                   </div>
-                  <p className="text-[10px] font-bold text-emerald-800 uppercase tracking-wider">Total Present</p>
-                  <p className="text-2xl font-black text-emerald-950">{matrixSummaryMetrics.present}</p>
+                  <div className="h-12 w-12 rounded-2xl bg-emerald-100/80 text-emerald-700 flex items-center justify-center shrink-0 shadow-inner">
+                    <ShieldCheck className="h-6 w-6" />
+                  </div>
                 </CardContent>
               </Card>
 
-              <Card className="border-amber-200/80 bg-gradient-to-br from-amber-50/70 to-yellow-50/40 shadow-sm hover:shadow-md transition-all">
-                <CardContent className="pt-4 p-3 text-center space-y-1">
-                  <div className="h-8 w-8 mx-auto rounded-full bg-amber-100 text-amber-700 flex items-center justify-center mb-1">
-                    <Clock className="h-4 w-4" />
+              <Card className="border-purple-100 bg-gradient-to-br from-white via-purple-50/30 to-indigo-50/20 shadow-sm hover:shadow-md transition-all">
+                <CardContent className="pt-4 p-4 flex items-center justify-between">
+                  <div className="space-y-1">
+                    <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Avg Daily Hours</p>
+                    <p className="text-2xl font-black text-purple-950">{executiveKpiMetrics.formattedAvgHours}</p>
+                    <p className="text-[11px] font-medium text-slate-500">Target: 8h 00m per working day</p>
                   </div>
-                  <p className="text-[10px] font-bold text-amber-800 uppercase tracking-wider">Total Late</p>
-                  <p className="text-2xl font-black text-amber-950">{matrixSummaryMetrics.late}</p>
+                  <div className="h-12 w-12 rounded-2xl bg-purple-100/80 text-purple-700 flex items-center justify-center shrink-0 shadow-inner">
+                    <Timer className="h-6 w-6" />
+                  </div>
                 </CardContent>
               </Card>
 
-              <Card className="border-blue-200/80 bg-gradient-to-br from-blue-50/70 to-indigo-50/40 shadow-sm hover:shadow-md transition-all">
-                <CardContent className="pt-4 p-3 text-center space-y-1">
-                  <div className="h-8 w-8 mx-auto rounded-full bg-blue-100 text-blue-700 flex items-center justify-center mb-1">
-                    <CalendarIcon className="h-4 w-4" />
+              <Card className="border-amber-100 bg-gradient-to-br from-white via-amber-50/30 to-yellow-50/20 shadow-sm hover:shadow-md transition-all">
+                <CardContent className="pt-4 p-4 flex items-center justify-between">
+                  <div className="space-y-1">
+                    <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Pending Action Items</p>
+                    <p className="text-2xl font-black text-amber-950">{executiveKpiMetrics.pendingCorrectionsCount} Requests</p>
+                    <button
+                      onClick={() => setActiveTab('corrections')}
+                      className="text-[11px] font-bold text-amber-800 hover:text-amber-950 hover:underline flex items-center gap-1"
+                    >
+                      Review Requests &rarr;
+                    </button>
                   </div>
-                  <p className="text-[10px] font-bold text-blue-800 uppercase tracking-wider">Total On Leave</p>
-                  <p className="text-2xl font-black text-blue-950">{matrixSummaryMetrics.leave}</p>
-                </CardContent>
-              </Card>
-
-              <Card className="border-rose-200/80 bg-gradient-to-br from-rose-50/70 to-pink-50/40 shadow-sm hover:shadow-md transition-all">
-                <CardContent className="pt-4 p-3 text-center space-y-1">
-                  <div className="h-8 w-8 mx-auto rounded-full bg-rose-100 text-rose-700 flex items-center justify-center mb-1">
-                    <AlertTriangle className="h-4 w-4" />
+                  <div className="h-12 w-12 rounded-2xl bg-amber-100/80 text-amber-700 flex items-center justify-center shrink-0 shadow-inner">
+                    <AlertCircle className="h-6 w-6" />
                   </div>
-                  <p className="text-[10px] font-bold text-rose-800 uppercase tracking-wider">Total Absent</p>
-                  <p className="text-2xl font-black text-rose-950">{matrixSummaryMetrics.absent}</p>
-                </CardContent>
-              </Card>
-
-              <Card className="border-purple-200/80 bg-gradient-to-br from-purple-50/70 to-indigo-50/40 shadow-sm hover:shadow-md transition-all">
-                <CardContent className="pt-4 p-3 text-center space-y-1">
-                  <div className="h-8 w-8 mx-auto rounded-full bg-purple-100 text-purple-700 flex items-center justify-center mb-1">
-                    <Timer className="h-4 w-4" />
-                  </div>
-                  <p className="text-[10px] font-bold text-purple-800 uppercase tracking-wider">Avg Working Hours</p>
-                  <p className="text-xl font-black text-purple-950">{matrixSummaryMetrics.formattedAvgHours}</p>
                 </CardContent>
               </Card>
             </div>
+
 
             {/* MAIN MATRIX GRID CONTAINER WITH STICKY HEADERS & COLUMNS */}
             <Card className="border-slate-300/80 shadow-xl overflow-hidden bg-white">
