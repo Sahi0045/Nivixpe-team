@@ -85,3 +85,14 @@ export function normalizeEmail(email: string): string {
   return aliasMap[clean] || clean;
 }
 
+export function normalizeName(name: string): string {
+  if (!name) return '';
+  const trimmed = name.trim();
+  const lower = trimmed.toLowerCase();
+  if (lower === 'swaraag shrey nambala' || lower === 'swaraag') return 'Swaraag';
+  if (lower === 'co-founder,cto' || lower === 'shubham kumar kushwaha' || lower === 'shubham') return 'Shubham';
+  return trimmed;
+}
+
+
+

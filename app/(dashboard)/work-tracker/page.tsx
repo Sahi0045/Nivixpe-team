@@ -12,6 +12,8 @@ import { supabaseDb, WorkTask, ProofOfWorkRecord } from '@/lib/supabase-db';
 import { ProofSubmissionForm } from '@/components/proof-submission-form';
 import { toast } from 'sonner';
 import { useSearchParams } from 'next/navigation';
+import { normalizeName } from '@/lib/utils';
+
 
 function isOverdue(task: { status: string; dueDate?: string }): boolean {
   if (task.status === 'completed') return false;
@@ -133,20 +135,28 @@ function WorkTrackerContent() {
     }
   };
   
-  const activeTeamMembers = teamMembers.filter(m => m.status !== 'inactive' && !['Abhiram', 'Rudra Sahu'].includes(m.name));
-  const hiddenAssignees = ['Abhiram', 'Rudra Sahu'];
-  const visibleTasks = getVisibleTasks(user, allTasks, activeTeamMembers).filter(
-    t => !hiddenAssignees.includes(t.assignee)
-  );
+  const hiddenAssignees = ['Abhiram', 'Rudra Sahu', 'nivixpe'];
+  const activeTeamMembers = teamMembers
+    .filter(m => m.status !== 'inactive' && !hiddenAssignees.includes(m.name))
+    .map(m => ({ ...m, name: normalizeName(m.name) }))
+    .filter((m, idx, arr) => arr.findIndex(x => x.name === m.name) === idx);
+
+  const visibleTasks = getVisibleTasks(user, allTasks, activeTeamMembers)
+    .map(t => ({ ...t, assignee: normalizeName(t.assignee) }))
+    .filter(t => !hiddenAssignees.includes(t.assignee));
+
   const assignableMembers = getAssignableMembers(user, activeTeamMembers);
   
   const allAssignees = useMemo(() => {
-    const fromTasks = new Set(visibleTasks.map(t => t.assignee));
-    const fromAssignable = new Set(assignableMembers.map(m => m.name));
-    if (user) fromTasks.add(user.name);
+    const fromTasks = new Set(visibleTasks.map(t => normalizeName(t.assignee)));
+    const fromAssignable = new Set(assignableMembers.map(m => normalizeName(m.name)));
+    if (user) fromTasks.add(normalizeName(user.name));
     const combined = new Set([...fromTasks, ...fromAssignable]);
-    return Array.from(combined).sort();
+    return Array.from(combined)
+      .filter(name => name && !hiddenAssignees.includes(name))
+      .sort();
   }, [visibleTasks, assignableMembers, user]);
+
 
   const filteredAssignees = useMemo(() => {
     let result = allAssignees;

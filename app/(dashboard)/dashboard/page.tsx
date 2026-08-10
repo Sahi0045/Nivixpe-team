@@ -72,7 +72,8 @@ export default function DashboardPage() {
   const activeEmployees = teamMembers.filter(m => m.status === 'active' && !['Abhiram', 'Rudra Sahu'].includes(m.name)).length;
 
   // Names to hide everywhere except Proof of Work and Team Drive
-  const hiddenMembers = ['Abhiram', 'Rudra Sahu'];
+  const hiddenMembers = ['Abhiram', 'Rudra Sahu', 'nivixpe'];
+
 
   // Build Activity Feed from Tasks, ProofOfWork, and Attendance
   const activities: any[] = [];

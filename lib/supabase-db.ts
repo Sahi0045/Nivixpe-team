@@ -1,4 +1,6 @@
 import { supabase, isSupabaseConfigured } from './supabase';
+import { normalizeEmail, normalizeName } from './utils';
+
 import {
   TEAM_MEMBERS,
   WORK_TASKS,
@@ -79,23 +81,22 @@ export interface DriveAccessGrantRecord {
   grantedAt: string;
 }
 
-// In-memory fallback state initialized with official organization team members
+// In-memory fallback state initialized with official organization team members (12 members)
 let localTeamMembers: TeamMember[] = [
   { id: '1', name: 'Sahith', email: 'sahith@nivixpe.com', role: 'CEO', department: 'Executive', team: 'Business', status: 'active', joinDate: '2020-01-15' },
-  { id: '2', name: 'Co-founder,CTO', email: 'shubhamc@nivixpe.com', role: 'CTO', department: 'Technology', team: 'Technical', reportsTo: 'Sahith', status: 'active', joinDate: '2020-02-01' },
-  { id: '3', name: 'Swaraag Shrey Nambala', email: 'swaraag@nivixpe.com', role: 'CSO', department: 'Sales & Strategy', team: 'Business', reportsTo: 'Sahith', status: 'active', joinDate: '2020-03-10' },
-  { id: '4', name: 'Ujjwal', email: 'ujjwal@nivixpe.com', role: 'DCSO', department: 'Deputy Sales & Strategy', team: 'Business', reportsTo: 'Swaraag Shrey Nambala', status: 'active', joinDate: '2021-01-20' },
+  { id: '2', name: 'Shubham', email: 'shubhamc@nivixpe.com', role: 'CTO', department: 'Technology', team: 'Technical', reportsTo: 'Sahith', status: 'active', joinDate: '2020-02-01' },
+  { id: '3', name: 'Swaraag', email: 'swaraag@nivixpe.com', role: 'CSO', department: 'Sales & Strategy', team: 'Business', reportsTo: 'Sahith', status: 'active', joinDate: '2020-03-10' },
+  { id: '4', name: 'Ujjwal', email: 'ujjwal@nivixpe.com', role: 'DCSO', department: 'Deputy Sales & Strategy', team: 'Business', reportsTo: 'Swaraag', status: 'active', joinDate: '2021-01-20' },
   { id: '5', name: 'Bhavika', email: 'N-wkw@nivixpe.com', role: 'DCMO', department: 'Deputy Marketing', team: 'Marketing', status: 'active', joinDate: '2021-02-10' },
   { id: '6', name: 'Siddharatha', email: 'siddharatha@nivixpe.com', role: 'COO', department: 'Operations', team: 'Business', reportsTo: 'Sahith', status: 'active', joinDate: '2020-05-01' },
   { id: '7', name: 'Kashish', email: 'kashish@nivixpe.com', role: 'Legal', department: 'Legal & Compliance', team: 'Legal', reportsTo: 'Sahith', status: 'active', joinDate: '2020-08-01' },
-  { id: '8', name: 'Ngan Nguyen', email: 'nguyen@nivixpe.com', role: 'Developer 1', department: 'Technology', team: 'Technical', reportsTo: 'Co-founder,CTO', status: 'active', joinDate: '2025-05-01' },
+  { id: '8', name: 'Ngan Nguyen', email: 'nguyen@nivixpe.com', role: 'Developer 1', department: 'Technology', team: 'Technical', reportsTo: 'Shubham', status: 'active', joinDate: '2025-05-01' },
   { id: '9', name: 'Vinisha', email: 'vinisha@nivixpe.com', role: 'Legal Intern', department: 'Legal & Compliance', team: 'Legal', reportsTo: 'Sahith', status: 'active', joinDate: '2025-05-15' },
   { id: '10', name: 'Aryan Kulshreshtra', email: 'aryan@nivixpe.com', role: 'Product Manager', department: 'HR', team: 'HR', reportsTo: 'Sahith', status: 'active', joinDate: '2025-05-02' },
   { id: '11', name: 'Adya Paliwal', email: 'adya@nivixpe.com', role: 'Product Manager', department: 'Product', team: 'Business', reportsTo: 'Sahith', status: 'active', joinDate: '2025-07-25' },
-  { id: '12', name: 'Nithin', email: 'nithin@nivixpe.com', role: 'Developer 3', department: 'Technology', team: 'Technical', reportsTo: 'Co-founder,CTO', status: 'active', joinDate: '2025-05-01' },
-  { id: '13', name: 'Shubham kumar kushwaha', email: 'shubham@nivixpe.com', role: 'Developer 2', department: 'Technology', team: 'Technical', reportsTo: 'Co-founder,CTO', status: 'active', joinDate: '2025-05-01' },
-  { id: '14', name: 'nivixpe', email: 'team@nivixpe.com', role: 'Admin', department: 'Operations', team: 'Business', reportsTo: 'Sahith', status: 'active', joinDate: '2025-01-01' }
+  { id: '12', name: 'Nithin', email: 'nithin@nivixpe.com', role: 'Developer 3', department: 'Technology', team: 'Technical', reportsTo: 'Shubham', status: 'active', joinDate: '2025-05-01' },
 ];
+
 let localWorkTasks: WorkTask[] = [];
 let localAttendanceRecords: AttendanceRecord[] = [];
 let localLeaveRequests: LeaveRequest[] = [];
@@ -1080,10 +1081,10 @@ export const supabaseDb = {
     try {
       const { data, error } = await supabase.from('team_members').select('*');
       if (error || !data || data.length === 0) return localTeamMembers;
-      return data.map((m: any) => ({
+      const mapped = data.map((m: any) => ({
         id: String(m.id),
-        name: m.name,
-        email: m.email,
+        name: normalizeName(m.name),
+        email: normalizeEmail(m.email),
         role: m.role,
         department: m.department,
         team: m.team,
@@ -1092,7 +1093,14 @@ export const supabaseDb = {
         status: m.status || 'active',
         lastLogin: m.last_login || m.lastLogin,
         joinDate: m.join_date || m.joinDate || '2020-01-15',
-      })) as TeamMember[];
+      }));
+
+      // Deduplicate by name and filter system admin account
+      const unique = mapped.filter((m, idx, arr) =>
+        m.name !== 'nivixpe' && arr.findIndex(x => x.name === m.name) === idx
+      );
+      return unique as TeamMember[];
+
     } catch {
       return localTeamMembers;
     }

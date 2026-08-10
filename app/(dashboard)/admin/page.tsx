@@ -61,7 +61,8 @@ export default function AdminPage() {
     loadData();
   }, []);
 
-  const hiddenMembers = ['Abhiram', 'Rudra Sahu'];
+  const hiddenMembers = ['Abhiram', 'Rudra Sahu', 'nivixpe'];
+
   const allTasks = allTasksRaw.filter(t => !hiddenMembers.includes(t.assignee));
   const allMembers = allMembersRaw.filter(m => !hiddenMembers.includes(m.name));
   const allLeaves = allLeavesRaw.filter(l => !hiddenMembers.includes(l.employeeName));
