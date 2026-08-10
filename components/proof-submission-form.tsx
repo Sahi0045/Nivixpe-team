@@ -37,6 +37,7 @@ export function ProofSubmissionForm({
   const [taskTitle, setTaskTitle] = useState(initialTaskTitle);
   const [workDescription, setWorkDescription] = useState('');
   const [proofLinks, setProofLinks] = useState<string[]>(['']);
+  const [completionOption, setCompletionOption] = useState<'in_progress' | 'completed'>('in_progress');
 
   const normalizedLinks = proofLinks.map((l) => l.trim()).filter(Boolean);
   const hasProofAttachment = Boolean(proofFile) || normalizedLinks.length > 0;
@@ -81,12 +82,14 @@ export function ProofSubmissionForm({
         proofLinks: allLinks.length > 0 ? allLinks : undefined,
         proofLink: allLinks[0] || fileUrl,
         fileSize: proofFile ? proofFile.size : undefined,
+        completionOption,
         status: 'submitted',
       });
 
       setProofFile(null);
       setWorkDescription('');
       setProofLinks(['']);
+      setCompletionOption('in_progress');
       onSuccess?.();
     } catch (error) {
       console.error('Error submitting proof of work:', error);
@@ -98,7 +101,63 @@ export function ProofSubmissionForm({
 
   return (
     <div className="space-y-6">
+      {/* Work Status Selection */}
+      <section className="rounded-lg border border-indigo-200 bg-indigo-50/40 p-4 space-y-3">
+        <h3 className="text-sm font-semibold text-indigo-950">Work Status *</h3>
+        <p className="text-xs text-muted-foreground">
+          Indicate if this submission is a daily progress update or the final completion of the task.
+        </p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+          <label
+            className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-all ${
+              completionOption === 'in_progress'
+                ? 'bg-white border-indigo-500 ring-2 ring-indigo-500/20 shadow-sm'
+                : 'bg-white/60 border-slate-200 hover:border-slate-300'
+            }`}
+          >
+            <input
+              type="radio"
+              name="completionOption"
+              value="in_progress"
+              checked={completionOption === 'in_progress'}
+              onChange={() => setCompletionOption('in_progress')}
+              className="mt-1 text-indigo-600 focus:ring-indigo-500"
+            />
+            <div>
+              <p className="text-sm font-semibold text-foreground">In Progress</p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Daily POW update. Task remains active for work to continue tomorrow after review.
+              </p>
+            </div>
+          </label>
+
+          <label
+            className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-all ${
+              completionOption === 'completed'
+                ? 'bg-white border-green-500 ring-2 ring-green-500/20 shadow-sm'
+                : 'bg-white/60 border-slate-200 hover:border-slate-300'
+            }`}
+          >
+            <input
+              type="radio"
+              name="completionOption"
+              value="completed"
+              checked={completionOption === 'completed'}
+              onChange={() => setCompletionOption('completed')}
+              className="mt-1 text-green-600 focus:ring-green-500"
+            />
+            <div>
+              <p className="text-sm font-semibold text-foreground">Completed</p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Final POW. Task will be officially marked Completed upon reviewer approval.
+              </p>
+            </div>
+          </label>
+        </div>
+      </section>
+
       {/* Task selection */}
+
       <section className="space-y-3">
         <h3 className="text-sm font-semibold text-foreground">Task</h3>
         <div>

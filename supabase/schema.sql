@@ -24,7 +24,8 @@ CREATE TABLE IF NOT EXISTS work_tasks (
     title TEXT NOT NULL,
     assignee TEXT NOT NULL,
     assignee_role TEXT NOT NULL,
-    status TEXT NOT NULL CHECK (status IN ('completed', 'ongoing', 'missed', 'continuous')),
+    status TEXT NOT NULL CHECK (status IN ('completed', 'ongoing', 'in_review', 'missed', 'continuous')),
+
     due_date TEXT NOT NULL,
     completed_date TEXT,
     priority TEXT NOT NULL CHECK (priority IN ('high', 'medium', 'low')),
@@ -83,10 +84,12 @@ CREATE TABLE IF NOT EXISTS proof_of_work (
     proof_link TEXT,
     proof_links TEXT[],
     file_size BIGINT,
+    completion_option TEXT DEFAULT 'in_progress',
     status TEXT NOT NULL CHECK (status IN ('submitted', 'approved', 'rejected', 'revision_requested')),
     reviewed_by TEXT,
     review_comments TEXT
 );
+
 
 -- 7. Team Drive Documents Table
 CREATE TABLE IF NOT EXISTS drive_documents (

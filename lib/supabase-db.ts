@@ -44,6 +44,7 @@ export interface ProofOfWorkRecord {
   proofLink?: string;
   proofLinks?: string[];
   fileSize?: number;
+  completionOption?: 'in_progress' | 'completed';
   status: 'submitted' | 'approved' | 'rejected' | 'revision_requested';
   reviewedBy?: string;
   reviewComments?: string;
@@ -1500,6 +1501,7 @@ export const supabaseDb = {
             proofLink: r.proof_link || r.proofLink,
             proofLinks: r.proof_links || r.proofLinks || [],
             fileSize: r.file_size || r.fileSize,
+            completionOption: r.completion_option || r.completionOption || 'in_progress',
             status: r.status,
             reviewedBy: r.reviewed_by || r.reviewedBy,
             reviewComments: r.review_comments || r.reviewComments,
@@ -1511,8 +1513,21 @@ export const supabaseDb = {
   },
 
   async submitProofOfWork(pow: Omit<ProofOfWorkRecord, 'id'>): Promise<ProofOfWorkRecord> {
-    const newPow = { ...pow, id: 'pow-' + Date.now() };
+    const newPow = { ...pow, id: 'pow-' + Date.now(), completionOption: pow.completionOption || 'in_progress' };
     localProofOfWork.unshift(newPow);
+
+    const targetTaskId = newPow.taskId;
+    const targetTaskTitle = newPow.taskTitle;
+    localWorkTasks = localWorkTasks.map((t) => {
+      if (
+        (targetTaskId && (String(t.id) === String(targetTaskId) || String((t as any)._id) === String(targetTaskId))) ||
+        (!targetTaskId && t.title.toLowerCase() === targetTaskTitle.toLowerCase())
+      ) {
+        return { ...t, status: 'in_review' };
+      }
+      return t;
+    });
+
     if (isSupabaseConfigured) {
       try {
         await supabase.from('proof_of_work').insert([{
@@ -1526,20 +1541,79 @@ export const supabaseDb = {
           proof_link: newPow.proofLink || null,
           proof_links: newPow.proofLinks || [],
           file_size: newPow.fileSize || null,
+          completion_option: newPow.completionOption,
           status: newPow.status,
           reviewed_by: newPow.reviewedBy || null,
           review_comments: newPow.reviewComments || null,
         }]);
-      } catch {}
+
+        if (targetTaskId) {
+          await supabase.from('work_tasks').update({ status: 'in_review' }).eq('id', targetTaskId);
+        } else if (targetTaskTitle) {
+          await supabase.from('work_tasks').update({ status: 'in_review' }).eq('title', targetTaskTitle);
+        }
+      } catch (e) {
+        console.warn('[supabaseDb] submitProofOfWork DB update error:', e);
+      }
     }
     notifySubscribers('proof_of_work');
+    notifySubscribers('work_tasks');
     return newPow;
   },
 
   async reviewProofOfWork(id: string, status: 'approved' | 'rejected' | 'revision_requested', comments?: string, reviewer?: string): Promise<void> {
+    const powIndex = localProofOfWork.findIndex((p) => p.id === id || String((p as any)._id) === String(id));
+    const targetPow = powIndex !== -1 ? localProofOfWork[powIndex] : null;
+
     localProofOfWork = localProofOfWork.map((p) =>
-      p.id === id ? { ...p, status, reviewComments: comments, reviewedBy: reviewer } : p
+      p.id === id || String((p as any)._id) === String(id) ? { ...p, status, reviewComments: comments, reviewedBy: reviewer } : p
     );
+
+    if (targetPow) {
+      const targetTaskId = targetPow.taskId;
+      const targetTaskTitle = targetPow.taskTitle;
+      
+      let nextTaskStatus: 'completed' | 'ongoing' = 'ongoing';
+      if (status === 'approved') {
+        nextTaskStatus = targetPow.completionOption === 'completed' ? 'completed' : 'ongoing';
+      } else {
+        nextTaskStatus = 'ongoing';
+      }
+
+      const completedDate = nextTaskStatus === 'completed' ? new Date().toISOString().split('T')[0] : undefined;
+
+      localWorkTasks = localWorkTasks.map((t) => {
+        if (
+          (targetTaskId && (String(t.id) === String(targetTaskId) || String((t as any)._id) === String(targetTaskId))) ||
+          (!targetTaskId && t.title.toLowerCase() === targetTaskTitle.toLowerCase())
+        ) {
+          return {
+            ...t,
+            status: nextTaskStatus,
+            completedDate: nextTaskStatus === 'completed' ? (completedDate || t.completedDate) : undefined,
+          };
+        }
+        return t;
+      });
+
+      if (isSupabaseConfigured) {
+        try {
+          const taskUpdates: any = { status: nextTaskStatus };
+          if (nextTaskStatus === 'completed') {
+            taskUpdates.completed_date = completedDate;
+          }
+
+          if (targetTaskId) {
+            await supabase.from('work_tasks').update(taskUpdates).eq('id', targetTaskId);
+          } else if (targetTaskTitle) {
+            await supabase.from('work_tasks').update(taskUpdates).eq('title', targetTaskTitle);
+          }
+        } catch (e) {
+          console.warn('[supabaseDb] reviewProofOfWork task DB error:', e);
+        }
+      }
+    }
+
     if (isSupabaseConfigured) {
       try {
         await supabase
@@ -1549,6 +1623,7 @@ export const supabaseDb = {
       } catch {}
     }
     notifySubscribers('proof_of_work');
+    notifySubscribers('work_tasks');
   },
 
 

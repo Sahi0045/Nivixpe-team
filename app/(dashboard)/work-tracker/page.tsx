@@ -36,6 +36,9 @@ function getStatusDisplay(task: { status: string; dueDate?: string }) {
   switch (task.status) {
     case 'completed':
       return { label: 'Completed', className: 'bg-green-100 text-green-800', dotColor: 'bg-green-500' };
+    case 'in_review':
+    case 'in review':
+      return { label: 'In Review', className: 'bg-indigo-100 text-indigo-800 border border-indigo-300 font-semibold', dotColor: 'bg-indigo-600' };
     case 'ongoing':
       return { label: 'Ongoing', className: 'bg-yellow-100 text-yellow-800', dotColor: 'bg-yellow-500' };
     case 'continuous':
@@ -342,14 +345,15 @@ function WorkTrackerContent() {
                             {task.status !== 'completed' && task.assignee === user?.name && (
                               (() => {
                                 const pow = getTaskPoW(task);
-                                if (pow?.status === 'submitted') {
+                                if (task.status === 'in_review' || pow?.status === 'submitted') {
                                   return (
                                     <button
                                       disabled
-                                      className="inline-flex items-center gap-2 bg-yellow-100 text-yellow-800 font-medium py-2.5 px-5 rounded-full shadow-sm text-sm border border-yellow-300 opacity-80 cursor-not-allowed"
-                                      title="Proof of Work submitted. Waiting for approval."
+                                      className="inline-flex items-center gap-1.5 bg-indigo-100 text-indigo-800 font-semibold py-2 px-4 rounded-full shadow-sm text-xs border border-indigo-300 opacity-90 cursor-not-allowed"
+                                      title="Proof of Work submitted. Waiting for reviewer approval."
                                     >
-                                      ⏳ Pending Approval
+                                      <Clock className="h-4 w-4 text-indigo-600 animate-spin" />
+                                      In Review (Awaiting Approval)
                                     </button>
                                   );
                                 }
@@ -359,17 +363,17 @@ function WorkTrackerContent() {
                                       onClick={() => {
                                         setProofTask({ id: task.id || (task as any)._id, title: task.title });
                                       }}
-                                      className="inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-medium py-2.5 px-5 rounded-full transition-all shadow-md hover:shadow-lg text-sm border-none outline-none"
+                                      className="inline-flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-medium py-2 px-4 rounded-full transition-all shadow-md hover:shadow-lg text-xs border-none outline-none"
                                       title={
-                                        pow?.status === 'rejected' ? 'Submit proof of work again' :
-                                        pow?.status === 'revision_requested' ? 'Revise proof of work submission' :
-                                        'Submit proof of work to complete this task'
+                                        pow?.status === 'rejected' ? 'POW rejected. Submit updated proof of work' :
+                                        pow?.status === 'revision_requested' ? 'Revision requested. Submit updated POW' :
+                                        'Submit proof of work for this task'
                                       }
                                     >
-                                      <CheckCircle className="h-5 w-5" />
-                                      {pow?.status === 'rejected' ? 'Submit PoW Again' :
+                                      <CheckCircle className="h-4 w-4" />
+                                      {pow?.status === 'rejected' ? 'Rework & Submit PoW' :
                                        pow?.status === 'revision_requested' ? 'Revise PoW' :
-                                       'Mark as Done'}
+                                       'Submit PoW'}
                                     </button>
                                 );
                               })()
@@ -452,6 +456,11 @@ function WorkTrackerContent() {
                   <CheckCircle className="h-4 w-4 text-green-600 mb-2" />
                   <p className="text-2xl font-bold text-green-900">{allCompleted.length}</p>
                   <p className="text-xs text-green-700">Completed</p>
+                </div>
+                <div className="bg-white rounded-lg border border-indigo-200 p-3">
+                  <Clock className="h-4 w-4 text-indigo-600 mb-2" />
+                  <p className="text-2xl font-bold text-indigo-900">{visibleTasks.filter(t => t.status === 'in_review').length}</p>
+                  <p className="text-xs text-indigo-700">In Review</p>
                 </div>
                 <div className="bg-white rounded-lg border border-yellow-200 p-3">
                   <Clock className="h-4 w-4 text-yellow-600 mb-2" />

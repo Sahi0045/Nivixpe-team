@@ -17,7 +17,8 @@ export interface WorkTask {
   title: string;
   assignee: string;
   assigneeRole: string;
-  status: 'completed' | 'ongoing' | 'missed' | 'continuous';
+  status: 'completed' | 'ongoing' | 'in_review' | 'missed' | 'continuous';
+
   dueDate: string;
   completedDate?: string;
   priority: 'high' | 'medium' | 'low';

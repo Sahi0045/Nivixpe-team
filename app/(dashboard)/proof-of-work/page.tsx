@@ -267,6 +267,15 @@ export default function ProofOfWorkPage() {
                             >
                               {pow.status.charAt(0).toUpperCase() + pow.status.slice(1)}
                             </span>
+                            <span
+                              className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-semibold border ${
+                                pow.completionOption === 'completed'
+                                  ? 'bg-purple-100 text-purple-800 border-purple-300'
+                                  : 'bg-blue-100 text-blue-800 border-blue-300'
+                              }`}
+                            >
+                              {pow.completionOption === 'completed' ? 'Final Task Completion' : 'In Progress (Daily Update)'}
+                            </span>
                           </div>
                           <p className="text-sm text-muted-foreground mt-1">
                             {pow.submittedBy} ({pow.submittedByEmail}) · {pow.submissionDate}
@@ -309,12 +318,15 @@ export default function ProofOfWorkPage() {
                         </div>
 
                         {pow.status === 'submitted' && canApprovePoW(user) && (
-                          <div className="mt-4 flex gap-3">
+                          <div className="mt-4 flex gap-3 flex-wrap">
                             <button
                               onClick={() => handleStatusUpdate(pow.id || (pow as any)._id, 'approved')}
-                              className="px-4 py-1.5 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-md transition-colors"
+                              className="px-4 py-1.5 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-md transition-colors flex items-center gap-1.5"
                             >
-                              Approve & Complete Task
+                              <CheckCircle className="h-4 w-4" />
+                              {pow.completionOption === 'completed'
+                                ? 'Approve & Mark Task Completed'
+                                : 'Approve Daily Progress (Task Continues)'}
                             </button>
                             <button
                               onClick={() => {
@@ -336,10 +348,11 @@ export default function ProofOfWorkPage() {
                               }}
                               className="px-4 py-1.5 border border-red-200 text-red-600 hover:bg-red-50 text-sm font-medium rounded-md transition-colors"
                             >
-                              Reject
+                              Reject & Require Rework
                             </button>
                           </div>
                         )}
+
                       </div>
                     </div>
                   </div>

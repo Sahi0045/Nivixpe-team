@@ -33,6 +33,10 @@ export function getStatusColor(status: string): string {
     case 'approved':
     case 'accepted':
       return 'bg-green-100 text-green-800 border-green-300';
+    case 'in review':
+    case 'in_review':
+    case 'submitted':
+      return 'bg-indigo-100 text-indigo-800 border-indigo-300';
     case 'pending':
     case 'in progress':
     case 'ongoing':
@@ -46,6 +50,7 @@ export function getStatusColor(status: string): string {
       return 'bg-gray-100 text-gray-800 border-gray-300';
   }
 }
+
 
 export function isLate(time: string): boolean {
   if (!time) return false;
