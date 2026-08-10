@@ -62,14 +62,17 @@ export default function ProofOfWorkPage() {
   const [filterStatus, setFilterStatus] = useState('all');
 
   const [allProofOfWork, setAllProofOfWork] = useState<ProofOfWorkRecord[]>([]);
+  const [allTasks, setAllTasks] = useState<WorkTask[]>([]);
   const [myTasks, setMyTasks] = useState<WorkTask[]>([]);
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
+
 
   const loadData = async () => {
     const pow = await supabaseDb.getProofOfWork();
     const tasks = await supabaseDb.getWorkTasks();
     const members = await supabaseDb.getTeamMembers();
     setAllProofOfWork(pow);
+    setAllTasks(tasks);
     setMyTasks(tasks.filter((t) => t.assignee === user?.name));
     setTeamMembers(members as any);
   };
@@ -107,7 +110,11 @@ export default function ProofOfWorkPage() {
     return Array.from(names).sort();
   }, [allProofOfWork, user, teamMembers]);
 
-  const taskOptions = myTasks.map((t) => ({ id: t.id, title: t.title }));
+  const taskOptions = useMemo(() => {
+    const source = allTasks.length > 0 ? allTasks : myTasks;
+    return source.map((t: any) => ({ id: t.id || t._id, _id: t._id || t.id, title: t.title }));
+  }, [allTasks, myTasks]);
+
 
   const handleStatusUpdate = async (powId: string, newStatus: any, reason?: string) => {
     try {

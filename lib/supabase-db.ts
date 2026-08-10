@@ -1530,6 +1530,7 @@ export const supabaseDb = {
         }]);
       } catch {}
     }
+    notifySubscribers('proof_of_work');
     return newPow;
   },
 
@@ -1545,7 +1546,9 @@ export const supabaseDb = {
           .eq('id', id);
       } catch {}
     }
+    notifySubscribers('proof_of_work');
   },
+
 
   // --- DRIVE DOCUMENTS ---
   async getDriveDocuments(): Promise<DriveDocumentRecord[]> {

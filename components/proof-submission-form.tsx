@@ -41,9 +41,8 @@ export function ProofSubmissionForm({
   const normalizedLinks = proofLinks.map((l) => l.trim()).filter(Boolean);
   const hasProofAttachment = Boolean(proofFile) || normalizedLinks.length > 0;
   const canSubmit =
-    Boolean(taskTitle.trim()) &&
-    Boolean(workDescription.trim()) &&
-    hasProofAttachment &&
+    (Boolean(taskTitle.trim()) || taskId !== '') &&
+    (hasProofAttachment || Boolean(workDescription.trim())) &&
     !isSubmitting;
 
   const addLinkField = () => setProofLinks((prev) => [...prev, '']);
@@ -55,34 +54,32 @@ export function ProofSubmissionForm({
   };
 
   const handleSubmit = async () => {
-    if (!taskTitle.trim() || !workDescription.trim()) {
-      alert('Please enter a task and work description.');
-      return;
-    }
-    if (!hasProofAttachment) {
-      alert('Please upload a file in the dropbox or add at least one proof link.');
-      return;
-    }
-
     setIsSubmitting(true);
     try {
+      let fileUrl: string | undefined = undefined;
       if (proofFile) {
         const sizeError = validateFileSize(proofFile);
         if (sizeError) {
           alert(sizeError);
+          setIsSubmitting(false);
           return;
         }
+        fileUrl = URL.createObjectURL(proofFile);
       }
+
+      const allLinks = [...(fileUrl ? [fileUrl] : []), ...normalizedLinks];
+      const finalTitle = taskTitle.trim() || 'General Work Proof';
+      const finalDesc = workDescription.trim() || 'Proof of work submitted.';
 
       await supabaseDb.submitProofOfWork({
         taskId: taskId && taskId !== 'Other' ? taskId : undefined,
-        taskTitle: taskTitle.trim(),
+        taskTitle: finalTitle,
         submittedBy: user.name,
         submittedByEmail: user.email,
         submissionDate: new Date().toISOString().replace('T', ' ').substring(0, 16),
-        workDescription: workDescription.trim(),
-        proofLinks: normalizedLinks.length > 0 ? normalizedLinks : undefined,
-        proofLink: normalizedLinks[0],
+        workDescription: finalDesc,
+        proofLinks: allLinks.length > 0 ? allLinks : undefined,
+        proofLink: allLinks[0] || fileUrl,
         fileSize: proofFile ? proofFile.size : undefined,
         status: 'submitted',
       });
@@ -105,7 +102,7 @@ export function ProofSubmissionForm({
       <section className="space-y-3">
         <h3 className="text-sm font-semibold text-foreground">Task</h3>
         <div>
-          <label className="block text-sm font-medium mb-2">Select task *</label>
+          <label className="block text-sm font-medium mb-2">Select task</label>
           <select
             className="w-full px-3 py-2 border rounded bg-background"
             value={taskId}
@@ -118,34 +115,35 @@ export function ProofSubmissionForm({
                 setTaskId('');
                 setTaskTitle('');
               } else {
-                const task = tasks.find((t) => t._id === val);
+                const task = tasks.find((t) => t.id === val || t._id === val);
                 setTaskId(val);
                 setTaskTitle(task?.title || '');
               }
             }}
           >
-            <option value="">Choose a task to complete</option>
+            <option value="">Choose a task to complete (or custom task)</option>
             {tasks.map((task) => (
-              <option key={task._id} value={task._id}>
+              <option key={task.id || task._id} value={task.id || task._id}>
                 {task.title}
               </option>
             ))}
             <option value="Other">Other (custom task)</option>
           </select>
         </div>
-        {taskId === 'Other' && (
+        {(taskId === 'Other' || !taskId) && (
           <div>
-            <label className="block text-sm font-medium mb-2">Custom task title *</label>
+            <label className="block text-sm font-medium mb-2">Custom task title</label>
             <input
               type="text"
               className="w-full px-3 py-2 border rounded bg-background"
-              placeholder="Enter task title"
+              placeholder="e.g. Completed Design Mockups"
               value={taskTitle}
               onChange={(e) => setTaskTitle(e.target.value)}
             />
           </div>
         )}
       </section>
+
 
       {/* Dropbox */}
       <section className="rounded-lg border border-dashed border-blue-200 bg-blue-50/40 p-4 space-y-3">
