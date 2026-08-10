@@ -25,9 +25,9 @@ import {
   ShieldCheck,
   ChevronDown,
   ChevronUp,
-  Sparkles,
   AlertTriangle
 } from 'lucide-react';
+
 import { useAuth } from '@/app/providers';
 import { 
   supabaseDb, 
@@ -542,8 +542,9 @@ export default function AttendanceHistoryPage() {
         <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 rounded-2xl p-6 text-white shadow-2xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4 border border-indigo-500/20 backdrop-blur-md">
           <div className="space-y-1">
             <h2 className="text-2xl font-black tracking-tight flex items-center gap-2.5">
-              <Sparkles className="h-6 w-6 text-indigo-400 animate-pulse" />
+              <ShieldCheck className="h-6 w-6 text-indigo-400" />
               Official Attendance Record Center
+
             </h2>
             <p className="text-sm text-slate-300 font-medium max-w-2xl">
               Real-time date-wise attendance grid. Track daily check-in times, working hours, approved leaves, and audit logs.
