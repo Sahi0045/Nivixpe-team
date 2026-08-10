@@ -1,4 +1,6 @@
 import { User } from './auth';
+import { normalizeName, normalizeEmail } from './utils';
+
 
 // Role-based access control for features and pages
 export const ROLE_PERMISSIONS: Record<string, string[]> = {
@@ -333,10 +335,14 @@ export function canViewTeamTasks(user: User | null, taskAssignee: string, allMem
   if (!user) return false;
   
   // CEO and CTO can view all
-  if (user.isSuperAdmin || user.role === 'CTO') return true;
+  if (user.isSuperAdmin || user.role === 'CTO' || user.role === 'Admin' || user.accessLevel === 'admin') return true;
   
   // User can view their own tasks
-  if (user.name === taskAssignee) return true;
+  const normUser = normalizeName(user.name);
+  const normAssignee = normalizeName(taskAssignee);
+  if (normUser === normAssignee) return true;
+  if (user.email && taskAssignee && normalizeEmail(user.email) === normalizeEmail(taskAssignee)) return true;
+
   
   // Find the assignee's team
   const assigneeMember = allMembers.find(m => m.name === taskAssignee);

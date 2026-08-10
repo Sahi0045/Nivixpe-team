@@ -111,9 +111,11 @@ export default function ProofOfWorkPage() {
   }, [allProofOfWork, user, teamMembers]);
 
   const taskOptions = useMemo(() => {
-    const source = allTasks.length > 0 ? allTasks : myTasks;
+    const isManager = canAssignTasks(user) || canApprovePoW(user) || user?.isSuperAdmin;
+    const source = isManager ? (allTasks.length > 0 ? allTasks : myTasks) : myTasks;
     return source.map((t: any) => ({ id: t.id || t._id, _id: t._id || t.id, title: t.title }));
-  }, [allTasks, myTasks]);
+  }, [allTasks, myTasks, user]);
+
 
 
   const handleStatusUpdate = async (powId: string, newStatus: any, reason?: string) => {

@@ -156,6 +156,10 @@ function WorkTrackerContent() {
   const assignableMembers = getAssignableMembers(user, activeTeamMembers);
   
   const allAssignees = useMemo(() => {
+    const isManager = canAssignTasks(user) || user?.isSuperAdmin || user?.role === 'Product Manager';
+    if (!isManager && user) {
+      return [normalizeName(user.name)];
+    }
     const fromTasks = new Set(visibleTasks.map(t => normalizeName(t.assignee)));
     const fromAssignable = new Set(assignableMembers.map(m => normalizeName(m.name)));
     if (user) fromTasks.add(normalizeName(user.name));
@@ -164,6 +168,7 @@ function WorkTrackerContent() {
       .filter(name => name && !hiddenAssignees.includes(name))
       .sort();
   }, [visibleTasks, assignableMembers, user]);
+
 
 
   const filteredAssignees = useMemo(() => {

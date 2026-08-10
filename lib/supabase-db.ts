@@ -1514,10 +1514,32 @@ export const supabaseDb = {
 
   async submitProofOfWork(pow: Omit<ProofOfWorkRecord, 'id'>): Promise<ProofOfWorkRecord> {
     const newPow = { ...pow, id: 'pow-' + Date.now(), completionOption: pow.completionOption || 'in_progress' };
-    localProofOfWork.unshift(newPow);
 
     const targetTaskId = newPow.taskId;
     const targetTaskTitle = newPow.taskTitle;
+
+    // Backend Authorization Check: Ensure submitter owns the task or is an authorized admin/manager
+    const targetTask = localWorkTasks.find((t) =>
+      (targetTaskId && (String(t.id) === String(targetTaskId) || String((t as any)._id) === String(targetTaskId))) ||
+      (!targetTaskId && t.title.toLowerCase() === targetTaskTitle.toLowerCase())
+    );
+
+    if (targetTask) {
+      const isOwner =
+        normalizeName(targetTask.assignee) === normalizeName(newPow.submittedBy) ||
+        (newPow.submittedByEmail && normalizeEmail(newPow.submittedByEmail) === normalizeEmail((targetTask as any).assigneeEmail || ''));
+      
+      const isManagerOrAdmin = ['CEO', 'Admin', 'CTO', 'COO', 'CSO', 'Product Manager'].some(
+        r => r.toLowerCase() === (newPow.submittedBy || '').toLowerCase()
+      );
+
+      if (!isOwner && !isManagerOrAdmin) {
+        throw new Error('Unauthorized: You can only submit Proof of Work for your own assigned tasks.');
+      }
+    }
+
+    localProofOfWork.unshift(newPow);
+
     localWorkTasks = localWorkTasks.map((t) => {
       if (
         (targetTaskId && (String(t.id) === String(targetTaskId) || String((t as any)._id) === String(targetTaskId))) ||
@@ -1527,6 +1549,7 @@ export const supabaseDb = {
       }
       return t;
     });
+
 
     if (isSupabaseConfigured) {
       try {
