@@ -8,6 +8,7 @@ import { useState, useEffect } from 'react';
 import { supabaseDb, Meeting, TeamMember } from '@/lib/supabase-db';
 import { confirmDelete } from '@/lib/confirm-delete';
 import { toast } from 'sonner';
+import { FileDropzone } from '@/components/file-dropzone';
 
 export default function MeetingsPage() {
   const { user } = useAuth();
@@ -33,6 +34,8 @@ export default function MeetingsPage() {
   const [showScheduleForm, setShowScheduleForm] = useState(false);
   const [showMOMUpload, setShowMOMUpload] = useState<string | null>(null);
   const [isScheduling, setIsScheduling] = useState(false);
+  const [momFile, setMomFile] = useState<File | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
 
   const [scheduleFormData, setScheduleFormData] = useState({
     title: '',
@@ -67,6 +70,7 @@ export default function MeetingsPage() {
         time: scheduleFormData.time || '00:00',
         attendees: scheduleFormData.attendees,
         status: 'scheduled',
+        agenda: scheduleFormData.agenda || undefined,
       });
 
       await loadData();
@@ -81,24 +85,54 @@ export default function MeetingsPage() {
     }
   };
 
+  const handleToggleMOMUpload = (meetingId: string | null) => {
+    setShowMOMUpload(meetingId);
+    setMomFile(null);
+    setMOMFormData({ minutesUrl: '', meetLink: '', decisions: '' });
+  };
+
   const handleUploadMOM = async (e: React.FormEvent, meetingId: string) => {
     e.preventDefault();
     if (!canManageMeetings) return;
 
+    setIsUploading(true);
     try {
+      let finalMinutesUrl = momFormData.minutesUrl;
+
+      if (momFile) {
+        const formData = new FormData();
+        formData.append('file', momFile);
+
+        const uploadRes = await fetch('/api/upload', {
+          method: 'POST',
+          body: formData,
+        });
+
+        if (!uploadRes.ok) {
+          const errData = await uploadRes.json().catch(() => ({}));
+          throw new Error(errData.error || 'Failed to upload document file');
+        }
+
+        const uploadData = await uploadRes.json();
+        finalMinutesUrl = uploadData.url;
+      }
+
       await supabaseDb.completeMeeting(meetingId, {
-        minutesUrl: momFormData.minutesUrl || undefined,
+        minutesUrl: finalMinutesUrl || undefined,
         meetLink: momFormData.meetLink || undefined,
         decisions: momFormData.decisions || undefined,
       });
 
       await loadData();
       setMOMFormData({ minutesUrl: '', meetLink: '', decisions: '' });
+      setMomFile(null);
       setShowMOMUpload(null);
       toast.success('Minutes of Meeting saved successfully!');
     } catch (error) {
       console.error('Error saving MOM:', error);
-      toast.error('Failed to save MOM');
+      toast.error(error instanceof Error ? error.message : 'Failed to save MOM');
+    } finally {
+      setIsUploading(false);
     }
   };
 
@@ -344,7 +378,7 @@ export default function MeetingsPage() {
                           <>
                             <button
                               onClick={() =>
-                                setShowMOMUpload(showMOMUpload === mId ? null : mId)
+                                handleToggleMOMUpload(showMOMUpload === mId ? null : mId)
                               }
                               className="flex items-center gap-1 px-3 py-1 bg-green-600 text-white rounded text-xs font-medium hover:bg-green-700"
                             >
@@ -430,6 +464,21 @@ export default function MeetingsPage() {
                               }
                               placeholder="https://drive.google.com/file/..."
                               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 text-sm"
+                              disabled={isUploading}
+                            />
+                          </div>
+
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                              Or Upload Minutes Document (Optional)
+                            </label>
+                            <FileDropzone
+                              file={momFile}
+                              onFileChange={setMomFile}
+                              accept=".pdf,.doc,.docx,.txt,image/*"
+                              label="Choose Minutes File"
+                              hint="Upload PDF, DOC, DOCX, TXT or Image"
+                              className="bg-white border border-gray-200 rounded-lg p-3"
                             />
                           </div>
 
@@ -445,20 +494,23 @@ export default function MeetingsPage() {
                               rows={3}
                               placeholder="Summary of key decisions and action items..."
                               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 text-sm"
+                              disabled={isUploading}
                             />
                           </div>
 
                           <div className="flex items-center gap-2">
                             <button
                               type="submit"
-                              className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium text-sm"
+                              disabled={isUploading}
+                              className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium text-sm disabled:bg-gray-400 disabled:cursor-not-allowed"
                             >
-                              Save MOM
+                              {isUploading ? 'Uploading & Saving...' : 'Save MOM'}
                             </button>
                             <button
                               type="button"
-                              onClick={() => setShowMOMUpload(null)}
+                              onClick={() => handleToggleMOMUpload(null)}
                               className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors font-medium text-sm"
+                              disabled={isUploading}
                             >
                               Cancel
                             </button>

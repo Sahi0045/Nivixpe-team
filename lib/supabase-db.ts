@@ -1898,7 +1898,6 @@ export const supabaseDb = {
     await this.updateLeaveStatus(id, 'cancelled', actorName, 'Cancelled by employee');
   },
 
-
   // --- MEETINGS ---
   async getMeetings(): Promise<Meeting[]> {
     if (isSupabaseConfigured) {
@@ -1906,19 +1905,22 @@ export const supabaseDb = {
         const { data, error } = await supabase.from('meetings').select('*');
         if (error) { console.warn('[supabaseDb] getMeetings error:', error.message); }
         else if (data && data.length > 0) {
-          return data.map((m: any) => ({
-            id: m.id,
-            title: m.title,
-            date: m.date,
-            time: m.time,
-            attendees: m.attendees || [],
-            status: m.status,
-            minutesUrl: m.minutes_url || m.minutesUrl,
-            scheduledBy: m.scheduled_by || m.scheduledBy,
-            meetLink: m.meet_link || m.meetLink,
-            decisions: m.decisions,
-            agenda: m.agenda,
-          })) as Meeting[];
+          return data.map((m: any) => {
+            const extraFields = deserializeMOMFields(m.minutes_url || m.minutesUrl);
+            return {
+              id: m.id,
+              title: m.title,
+              date: m.date,
+              time: m.time,
+              attendees: m.attendees || [],
+              status: m.status,
+              minutesUrl: extraFields.minutesUrl,
+              scheduledBy: m.scheduled_by || m.scheduledBy,
+              meetLink: extraFields.meetLink,
+              decisions: extraFields.decisions,
+              agenda: extraFields.agenda,
+            };
+          }) as Meeting[];
         }
       } catch (e) { console.warn('[supabaseDb] getMeetings exception:', e); }
     }
@@ -1930,6 +1932,7 @@ export const supabaseDb = {
     localMeetings.unshift(newMeeting);
     if (isSupabaseConfigured) {
       try {
+        const minutesUrlPayload = serializeMOMFields({ agenda: newMeeting.agenda }, newMeeting);
         // Map camelCase → snake_case for DB columns
         const { error } = await supabase.from('meetings').insert([{
           id: newMeeting.id,
@@ -1938,7 +1941,7 @@ export const supabaseDb = {
           time: newMeeting.time,
           attendees: newMeeting.attendees || [],
           status: newMeeting.status,
-          minutes_url: newMeeting.minutesUrl || null,
+          minutes_url: minutesUrlPayload,
           scheduled_by: (newMeeting as any).scheduledBy || null,
         }]);
         if (error) console.warn('[supabaseDb] createMeeting error:', error.message);
@@ -1949,16 +1952,18 @@ export const supabaseDb = {
 
   async completeMeeting(id: string, updates: Partial<Meeting>): Promise<void> {
     const idx = localMeetings.findIndex((m) => m.id === id);
+    let currentMeeting: Meeting | undefined = undefined;
     if (idx !== -1) {
       localMeetings[idx] = { ...localMeetings[idx], ...updates, status: 'completed' };
+      currentMeeting = localMeetings[idx];
     }
     if (isSupabaseConfigured) {
       try {
-        const dbUpdates: any = { status: 'completed' };
-        if (updates.minutesUrl !== undefined) dbUpdates.minutes_url = updates.minutesUrl;
-        if (updates.decisions !== undefined) dbUpdates.decisions = updates.decisions;
-        if (updates.agenda !== undefined) dbUpdates.agenda = updates.agenda;
-        const { error } = await supabase.from('meetings').update(dbUpdates).eq('id', id);
+        const serialized = serializeMOMFields(updates, currentMeeting);
+        const { error } = await supabase.from('meetings').update({
+          status: 'completed',
+          minutes_url: serialized,
+        }).eq('id', id);
         if (error) console.warn('[supabaseDb] completeMeeting error:', error.message);
       } catch (e) { console.warn('[supabaseDb] completeMeeting exception:', e); }
     }
@@ -2292,3 +2297,49 @@ export const supabaseDb = {
   },
 
 };
+
+// Helper functions to serialize and deserialize meeting details into/from the minutes_url column
+// to bypass database schema limitations for columns like decisions, meet_link, and agenda.
+function serializeMOMFields(updates: Partial<Meeting>, currentMeeting: Meeting | undefined): string | null {
+  const minutesUrl = updates.minutesUrl !== undefined ? updates.minutesUrl : (currentMeeting?.minutesUrl || '');
+  const meetLink = updates.meetLink !== undefined ? updates.meetLink : (currentMeeting?.meetLink || '');
+  const decisions = updates.decisions !== undefined ? updates.decisions : (currentMeeting?.decisions || '');
+  const agenda = updates.agenda !== undefined ? updates.agenda : (currentMeeting?.agenda || '');
+
+  if (!meetLink && !decisions && !agenda) {
+    return minutesUrl || null;
+  }
+
+  return JSON.stringify({
+    minutesUrl,
+    meetLink,
+    decisions,
+    agenda,
+  });
+}
+
+function deserializeMOMFields(minutesUrlVal: string | null | undefined) {
+  if (!minutesUrlVal) {
+    return { minutesUrl: undefined, meetLink: undefined, decisions: undefined, agenda: undefined };
+  }
+  const str = minutesUrlVal.trim();
+  if (str.startsWith('{') && str.endsWith('}')) {
+    try {
+      const parsed = JSON.parse(str);
+      return {
+        minutesUrl: parsed.minutesUrl || undefined,
+        meetLink: parsed.meetLink || undefined,
+        decisions: parsed.decisions || undefined,
+        agenda: parsed.agenda || undefined,
+      };
+    } catch {
+      // Ignore JSON parse error and fallback
+    }
+  }
+  return {
+    minutesUrl: minutesUrlVal,
+    meetLink: undefined,
+    decisions: undefined,
+    agenda: undefined,
+  };
+}
