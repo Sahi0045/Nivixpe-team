@@ -28,17 +28,50 @@ export interface WorkTask {
   coordinationWith?: string;
 }
 
+export interface AttendanceAuditLog {
+  timestamp: string;
+  action: string;
+  actor: string;
+  details?: string;
+}
+
 export interface AttendanceRecord {
   id?: string;
   date: string;
   email: string;
+  name?: string;
   loginTime?: string;
   logoutTime?: string;
-  status: 'present' | 'absent' | 'onLeave';
-  workHours?: number;
+  status: 'present' | 'late' | 'absent' | 'halfDay' | 'onLeave' | 'holiday' | 'weekend' | 'workFromHome' | 'onDuty';
+  workHours?: number; // minutes
+  lateMinutes?: number;
+  expectedLogin?: string;
+  correctionStatus?: 'none' | 'pending' | 'approved' | 'rejected';
+  leaveRequestId?: string;
   isPaused?: boolean;
   currentSessionStart?: string;
+  auditLog?: AttendanceAuditLog[];
 }
+
+export interface AttendanceCorrectionRequest {
+  id: string;
+  attendanceId?: string;
+  employeeName: string;
+  employeeEmail: string;
+  date: string;
+  currentLogin?: string;
+  currentLogout?: string;
+  requestedLogin: string;
+  requestedLogout: string;
+  reason: string;
+  attachmentUrl?: string;
+  status: 'pending' | 'approved' | 'rejected';
+  reviewedBy?: string;
+  rejectionReason?: string;
+  createdAt: string;
+}
+
+
 
 export interface LeaveAuditLog {
   timestamp: string;

@@ -134,6 +134,8 @@ export default function AttendancePage() {
         email: member.email,
         date: today,
         status: 'onLeave' as const,
+        loginTime: undefined as string | undefined,
+        logoutTime: undefined as string | undefined,
         approval: leave.approvedBy || 'Approved',
         name: member.name,
       };
@@ -143,6 +145,8 @@ export default function AttendancePage() {
       email: member.email,
       date: today,
       status: 'absent' as const,
+      loginTime: undefined as string | undefined,
+      logoutTime: undefined as string | undefined,
       name: member.name,
     };
   });

@@ -10,6 +10,8 @@ import {
   TeamMember,
   WorkTask,
   AttendanceRecord,
+  AttendanceCorrectionRequest,
+  AttendanceAuditLog,
   LeaveRequest,
   Meeting,
 } from './mock-data';
@@ -18,9 +20,12 @@ export type {
   TeamMember,
   WorkTask,
   AttendanceRecord,
+  AttendanceCorrectionRequest,
+  AttendanceAuditLog,
   LeaveRequest,
   Meeting,
 };
+
 
 const subscribers: Record<string, Set<() => void>> = {};
 
@@ -99,7 +104,153 @@ let localTeamMembers: TeamMember[] = [
 ];
 
 let localWorkTasks: WorkTask[] = [];
-let localAttendanceRecords: AttendanceRecord[] = [];
+let localAttendanceRecords: AttendanceRecord[] = [
+  {
+    id: 'att-101',
+    date: '2026-08-10',
+    email: 'nguyen@nivixpe.com',
+    name: 'Ngan Nguyen',
+    loginTime: '09:32 AM',
+    logoutTime: '06:15 PM',
+    status: 'present',
+    workHours: 523,
+    lateMinutes: 2,
+    expectedLogin: '09:30 AM',
+    auditLog: [
+      { timestamp: '2026-08-10T09:32:00Z', action: 'Check-in', actor: 'Ngan Nguyen', details: 'Web portal check-in' },
+      { timestamp: '2026-08-10T18:15:00Z', action: 'Check-out', actor: 'Ngan Nguyen', details: 'Web portal check-out' }
+    ]
+  },
+  {
+    id: 'att-102',
+    date: '2026-08-11',
+    email: 'nguyen@nivixpe.com',
+    name: 'Ngan Nguyen',
+    loginTime: '09:45 AM',
+    logoutTime: '06:10 PM',
+    status: 'late',
+    workHours: 505,
+    lateMinutes: 15,
+    expectedLogin: '09:30 AM',
+    auditLog: [
+      { timestamp: '2026-08-11T09:45:00Z', action: 'Check-in', actor: 'Ngan Nguyen', details: 'Late arrival (15m)' },
+      { timestamp: '2026-08-11T18:10:00Z', action: 'Check-out', actor: 'Ngan Nguyen', details: 'Web portal check-out' }
+    ]
+  },
+  {
+    id: 'att-103',
+    date: '2026-08-12',
+    email: 'nguyen@nivixpe.com',
+    name: 'Ngan Nguyen',
+    status: 'onLeave',
+    leaveRequestId: 'leave-101',
+    auditLog: [
+      { timestamp: '2026-08-12T00:00:00Z', action: 'Approved Leave', actor: 'System', details: 'Reflected from approved Casual Leave' }
+    ]
+  },
+  {
+    id: 'att-104',
+    date: '2026-08-13',
+    email: 'nguyen@nivixpe.com',
+    name: 'Ngan Nguyen',
+    loginTime: '09:20 AM',
+    logoutTime: '06:05 PM',
+    status: 'present',
+    workHours: 525,
+    expectedLogin: '09:30 AM',
+    auditLog: [
+      { timestamp: '2026-08-13T09:20:00Z', action: 'Check-in', actor: 'Ngan Nguyen', details: 'Web portal check-in' }
+    ]
+  },
+  {
+    id: 'att-105',
+    date: '2026-08-14',
+    email: 'vinisha@nivixpe.com',
+    name: 'Vinisha',
+    loginTime: '09:30 AM',
+    status: 'present',
+    workHours: 0,
+    expectedLogin: '09:30 AM',
+    auditLog: [
+      { timestamp: '2026-08-14T09:30:00Z', action: 'Check-in', actor: 'Vinisha', details: 'Web portal check-in' }
+    ]
+  }
+];
+
+let localAttendanceCorrections: AttendanceCorrectionRequest[] = [
+  {
+    id: 'corr-1',
+    attendanceId: 'att-105',
+    employeeName: 'Vinisha',
+    employeeEmail: 'vinisha@nivixpe.com',
+    date: '2026-08-14',
+    currentLogin: '09:30 AM',
+    currentLogout: undefined,
+    requestedLogin: '09:30 AM',
+    requestedLogout: '06:20 PM',
+    reason: 'Forgot to check out on 14 August. I worked until 6:20 PM.',
+    status: 'pending',
+    createdAt: '2026-08-14T18:30:00Z'
+  }
+];
+
+export function getUserAttendanceSummary(emailOrName: string, records: AttendanceRecord[], startDate?: string, endDate?: string) {
+  const normInput = normalizeName(emailOrName);
+  const normEmail = normalizeEmail(emailOrName);
+
+  let userRecords = records.filter(
+    (r) => normalizeEmail(r.email) === normEmail || normalizeName(r.name || '') === normInput
+  );
+
+  if (startDate && endDate) {
+    userRecords = userRecords.filter((r) => r.date >= startDate && r.date <= endDate);
+  }
+
+  let present = 0;
+  let late = 0;
+  let halfDay = 0;
+  let leave = 0;
+  let absent = 0;
+  let weekend = 0;
+  let holiday = 0;
+  let totalMins = 0;
+
+  userRecords.forEach((r) => {
+    if (r.status === 'present') present++;
+    else if (r.status === 'late') late++;
+    else if (r.status === 'halfDay') halfDay++;
+    else if (r.status === 'onLeave') leave++;
+    else if (r.status === 'absent') absent++;
+    else if (r.status === 'weekend') weekend++;
+    else if (r.status === 'holiday') holiday++;
+
+    if (r.workHours && r.workHours > 0) {
+      totalMins += r.workHours;
+    }
+  });
+
+  const totalWorkingDays = Math.max(1, present + late + halfDay + leave + absent);
+  const attendanceRate = Math.round(((present + late + halfDay * 0.5) / totalWorkingDays) * 100);
+
+  const hours = Math.floor(totalMins / 60);
+  const mins = totalMins % 60;
+  const formattedHours = `${hours}h ${mins}m`;
+
+  return {
+    totalWorkingDays,
+    present,
+    late,
+    halfDay,
+    leave,
+    absent,
+    weekend,
+    holiday,
+    totalMins,
+    formattedHours,
+    attendanceRate,
+  };
+}
+
 let localLeaveRequests: LeaveRequest[] = [
   {
     id: 'leave-101',
@@ -1447,7 +1598,93 @@ export const supabaseDb = {
         }
       } catch (e) { console.warn('[supabaseDb] markAttendance exception:', e); }
     }
+    notifySubscribers('attendance_records');
   },
+
+  async getAttendanceCorrectionRequests(): Promise<AttendanceCorrectionRequest[]> {
+    return localAttendanceCorrections;
+  },
+
+  async createAttendanceCorrectionRequest(req: Omit<AttendanceCorrectionRequest, 'id' | 'createdAt' | 'status'>): Promise<AttendanceCorrectionRequest> {
+    const newReq: AttendanceCorrectionRequest = {
+      ...req,
+      id: 'corr-' + Date.now(),
+      status: 'pending',
+      createdAt: new Date().toISOString(),
+    };
+    localAttendanceCorrections.unshift(newReq);
+
+    if (newReq.attendanceId) {
+      localAttendanceRecords = localAttendanceRecords.map((r) =>
+        String(r.id) === String(newReq.attendanceId) ? { ...r, correctionStatus: 'pending' } : r
+      );
+    }
+    notifySubscribers('attendance_records');
+    return newReq;
+  },
+
+  async reviewAttendanceCorrectionRequest(id: string, status: 'approved' | 'rejected', reviewerName: string, rejectionReason?: string): Promise<void> {
+    const corrIndex = localAttendanceCorrections.findIndex((c) => c.id === id);
+    if (corrIndex >= 0) {
+      const corr = localAttendanceCorrections[corrIndex];
+      localAttendanceCorrections[corrIndex] = {
+        ...corr,
+        status,
+        reviewedBy: reviewerName,
+        rejectionReason: status === 'rejected' ? rejectionReason : undefined,
+      };
+
+      if (status === 'approved') {
+        let workMins = 480;
+        try {
+          const parseTimeStr = (tStr: string) => {
+            const parts = tStr.trim().split(/[:\s]/);
+            let h = parseInt(parts[0], 10);
+            const m = parseInt(parts[1], 10);
+            const ampm = (parts[2] || '').toUpperCase();
+            if (ampm === 'PM' && h < 12) h += 12;
+            if (ampm === 'AM' && h === 12) h = 0;
+            return h * 60 + m;
+          };
+          const startM = parseTimeStr(corr.requestedLogin);
+          const endM = parseTimeStr(corr.requestedLogout);
+          if (endM > startM) workMins = endM - startM;
+        } catch {}
+
+        const targetRecord = localAttendanceRecords.find(
+          (r) => (corr.attendanceId && String(r.id) === String(corr.attendanceId)) || (r.date === corr.date && r.email === corr.employeeEmail)
+        );
+
+        if (targetRecord) {
+          const newAuditEntry = {
+            timestamp: new Date().toISOString(),
+            action: 'Correction Approved',
+            actor: reviewerName,
+            details: `Correction approved by ${reviewerName}: Login ${corr.requestedLogin}, Logout ${corr.requestedLogout}`,
+          };
+          const auditLog = targetRecord.auditLog || [];
+
+          await this.markAttendance({
+            ...targetRecord,
+            loginTime: corr.requestedLogin,
+            logoutTime: corr.requestedLogout,
+            status: 'present',
+            workHours: workMins,
+            correctionStatus: 'approved',
+            auditLog: [newAuditEntry, ...auditLog],
+          });
+        }
+      } else if (status === 'rejected') {
+        if (corr.attendanceId) {
+          localAttendanceRecords = localAttendanceRecords.map((r) =>
+            String(r.id) === String(corr.attendanceId) ? { ...r, correctionStatus: 'rejected' } : r
+          );
+        }
+      }
+    }
+    notifySubscribers('attendance_records');
+  },
+
 
   // --- LEAVE REQUESTS ---
   async getLeaveRequests(): Promise<LeaveRequest[]> {

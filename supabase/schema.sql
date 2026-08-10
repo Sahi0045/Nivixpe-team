@@ -43,9 +43,35 @@ CREATE TABLE IF NOT EXISTS attendance_records (
     email TEXT NOT NULL,
     login_time TEXT,
     logout_time TEXT,
-    status TEXT NOT NULL CHECK (status IN ('present', 'absent', 'onLeave')),
+    status TEXT NOT NULL CHECK (status IN ('present', 'late', 'absent', 'halfDay', 'onLeave', 'holiday', 'weekend', 'workFromHome', 'onDuty')),
+    work_hours INTEGER DEFAULT 0,
+    late_minutes INTEGER DEFAULT 0,
+    expected_login TEXT DEFAULT '09:30 AM',
+    correction_status TEXT DEFAULT 'none',
+    leave_request_id TEXT,
+    audit_log JSONB,
     CONSTRAINT attendance_records_date_email_key UNIQUE (date, email)
 );
+
+-- 3b. Attendance Corrections Table
+CREATE TABLE IF NOT EXISTS attendance_corrections (
+    id TEXT PRIMARY KEY,
+    attendance_id TEXT,
+    employee_name TEXT NOT NULL,
+    employee_email TEXT NOT NULL,
+    date TEXT NOT NULL,
+    current_login TEXT,
+    current_logout TEXT,
+    requested_login TEXT NOT NULL,
+    requested_logout TEXT NOT NULL,
+    reason TEXT NOT NULL,
+    attachment_url TEXT,
+    status TEXT NOT NULL CHECK (status IN ('pending', 'approved', 'rejected')),
+    reviewed_by TEXT,
+    rejection_reason TEXT,
+    created_at TEXT NOT NULL
+);
+
 
 -- 4. Leave Requests Table
 CREATE TABLE IF NOT EXISTS leave_requests (
