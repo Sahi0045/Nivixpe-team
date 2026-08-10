@@ -296,10 +296,11 @@ export function calculateWorkingDays(startDateStr: string, endDateStr: string): 
   const current = new Date(start);
   while (current <= end) {
     const dayOfWeek = current.getDay();
-    // Exclude Saturday (6) and Sunday (0)
-    if (dayOfWeek !== 0 && dayOfWeek !== 6) {
+    // Exclude Sunday (0) only. Saturday is a working day.
+    if (dayOfWeek !== 0) {
       count++;
     }
+
     current.setDate(current.getDate() + 1);
   }
   return count;

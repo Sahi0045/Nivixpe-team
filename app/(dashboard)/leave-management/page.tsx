@@ -32,7 +32,9 @@ import {
 } from '@/lib/supabase-db';
 import { canApproveLeave } from '@/lib/rbac';
 import { normalizeName, normalizeEmail } from '@/lib/utils';
+import { PageFilterBar } from '@/components/page-filter-bar';
 import { toast } from 'sonner';
+
 
 type ActiveTab = 'dashboard' | 'my-history' | 'approvals' | 'calendar';
 
@@ -63,9 +65,17 @@ export default function LeaveManagementPage() {
   const [formError, setFormError] = useState('');
 
   // Manager Approval Filters
+  const [filterRole, setFilterRole] = useState<string>('all');
+  const [filterTeam, setFilterTeam] = useState<string>('all');
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [filterPerson, setFilterPerson] = useState<string>('all');
   const [filterType, setFilterType] = useState<string>('all');
+  const [teamMembersList, setTeamMembersList] = useState<any[]>([]);
+
+  useEffect(() => {
+    supabaseDb.getTeamMembers().then(setTeamMembersList);
+  }, []);
+
 
   // Calendar State
   const [currentCalendarDate, setCurrentCalendarDate] = useState(new Date());
@@ -118,12 +128,17 @@ export default function LeaveManagementPage() {
   const filteredApprovalRequests = useMemo(() => {
     return allLeaveRequests.filter((req) => {
       if (hiddenMembers.includes(req.employeeName)) return false;
+      const member = teamMembersList.find((m) => normalizeName(m.name) === normalizeName(req.employeeName));
+
+      if (filterRole !== 'all' && member?.role !== filterRole) return false;
+      if (filterTeam !== 'all' && member?.team !== filterTeam && !member?.additionalTeams?.includes(filterTeam)) return false;
       if (filterStatus !== 'all' && req.status !== filterStatus) return false;
       if (filterPerson !== 'all' && normalizeName(req.employeeName) !== normalizeName(filterPerson)) return false;
       if (filterType !== 'all' && req.type !== filterType) return false;
       return true;
     });
-  }, [allLeaveRequests, filterStatus, filterPerson, filterType]);
+  }, [allLeaveRequests, filterRole, filterTeam, filterStatus, filterPerson, filterType, teamMembersList]);
+
 
   const pendingApprovalCount = useMemo(() => {
     return allLeaveRequests.filter((r) => r.status === 'pending' && !hiddenMembers.includes(r.employeeName)).length;
@@ -600,64 +615,32 @@ export default function LeaveManagementPage() {
         {activeTab === 'approvals' && userCanApprove && (
           <div className="space-y-6">
             {/* Filter Bar */}
-            <Card className="p-4 bg-white border-slate-200">
-              <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 text-xs">
-                <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Status Filter</label>
-                  <select
-                    className="w-full p-2 border rounded-lg bg-slate-50"
-                    value={filterStatus}
-                    onChange={(e) => setFilterStatus(e.target.value)}
-                  >
-                    <option value="all">All Statuses</option>
-                    <option value="pending">Pending Only</option>
-                    <option value="approved">Approved Only</option>
-                    <option value="rejected">Rejected Only</option>
-                    <option value="cancelled">Cancelled Only</option>
-                  </select>
-                </div>
+            <PageFilterBar
+              selectedRole={filterRole}
+              onRoleChange={setFilterRole}
+              selectedTeam={filterTeam}
+              onTeamChange={setFilterTeam}
+              selectedPerson={filterPerson}
+              onPersonChange={setFilterPerson}
+              selectedStatus={filterStatus}
+              onStatusChange={setFilterStatus}
+              showStatusFilter={true}
+              statusOptions={[
+                { id: 'pending', label: 'Pending Only' },
+                { id: 'approved', label: 'Approved Only' },
+                { id: 'rejected', label: 'Rejected Only' },
+                { id: 'cancelled', label: 'Cancelled Only' },
+              ]}
+              visibleMembers={teamMembersList.filter(m => !hiddenMembers.includes(m.name))}
+              onResetFilters={() => {
+                setFilterRole('all');
+                setFilterTeam('all');
+                setFilterPerson('all');
+                setFilterStatus('all');
+                setFilterType('all');
+              }}
+            />
 
-                <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Employee Filter</label>
-                  <select
-                    className="w-full p-2 border rounded-lg bg-slate-50"
-                    value={filterPerson}
-                    onChange={(e) => setFilterPerson(e.target.value)}
-                  >
-                    <option value="all">All Team Members</option>
-                    {Array.from(new Set(allLeaveRequests.map(r => r.employeeName))).map(name => (
-                      <option key={name} value={name}>{name}</option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Leave Type</label>
-                  <select
-                    className="w-full p-2 border rounded-lg bg-slate-50"
-                    value={filterType}
-                    onChange={(e) => setFilterType(e.target.value)}
-                  >
-                    <option value="all">All Types</option>
-                    <option value="casual">Casual Leave</option>
-                    <option value="sick">Sick Leave</option>
-                    <option value="annual">Annual Leave</option>
-                    <option value="emergency">Emergency Leave</option>
-                    <option value="unpaid">Unpaid Leave</option>
-                    <option value="other">Other</option>
-                  </select>
-                </div>
-
-                <div className="flex items-end">
-                  <button
-                    onClick={() => { setFilterStatus('all'); setFilterPerson('all'); setFilterType('all'); }}
-                    className="w-full p-2 bg-slate-200 hover:bg-slate-300 font-semibold rounded-lg text-slate-700 transition-colors"
-                  >
-                    Reset Filters
-                  </button>
-                </div>
-              </div>
-            </Card>
 
             {/* Approval Table */}
             <Card>
@@ -782,7 +765,8 @@ export default function LeaveManagementPage() {
                       <th className="p-2 border text-left min-w-[140px]">Employee</th>
                       {calendarDaysInMonth.days.map((dateObj) => {
                         const dayNum = dateObj.getDate();
-                        const isWeekend = dateObj.getDay() === 0 || dateObj.getDay() === 6;
+                        const isWeekend = dateObj.getDay() === 0;
+
                         return (
                           <th key={dayNum} className={`p-2 border text-center ${isWeekend ? 'bg-slate-200/70 text-slate-500' : ''}`}>
                             <div>{dayNum}</div>
@@ -800,7 +784,8 @@ export default function LeaveManagementPage() {
                           <td className="p-2 border font-bold text-left text-slate-900 bg-white">{empName}</td>
                           {calendarDaysInMonth.days.map((dateObj) => {
                             const dateStr = dateObj.toISOString().split('T')[0];
-                            const isWeekend = dateObj.getDay() === 0 || dateObj.getDay() === 6;
+                            const isWeekend = dateObj.getDay() === 0;
+
 
                             const activeLeave = allLeaveRequests.find(
                               (r) =>

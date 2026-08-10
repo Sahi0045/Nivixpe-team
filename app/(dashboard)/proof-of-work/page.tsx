@@ -18,7 +18,9 @@ import { useState, useMemo, useEffect } from 'react';
 import { supabaseDb, ProofOfWorkRecord, WorkTask, TeamMember } from '@/lib/supabase-db';
 import { canViewTeamTasks, canAssignTasks, canApprovePoW } from '@/lib/rbac';
 import { ProofSubmissionForm } from '@/components/proof-submission-form';
+import { PageFilterBar } from '@/components/page-filter-bar';
 import { toast } from 'sonner';
+
 
 function ProofLinksList({
   proofLinks,
@@ -58,8 +60,11 @@ function ProofLinksList({
 export default function ProofOfWorkPage() {
   const { user } = useAuth();
   const [showSubmitModal, setShowSubmitModal] = useState(false);
+  const [filterRole, setFilterRole] = useState('all');
+  const [filterTeam, setFilterTeam] = useState('all');
   const [filterPerson, setFilterPerson] = useState('all');
   const [filterStatus, setFilterStatus] = useState('all');
+
 
   const [allProofOfWork, setAllProofOfWork] = useState<ProofOfWorkRecord[]>([]);
   const [allTasks, setAllTasks] = useState<WorkTask[]>([]);
@@ -90,6 +95,18 @@ export default function ProofOfWorkPage() {
     let pows = allProofOfWork.filter((pow) =>
       canViewTeamTasks(user, pow.submittedBy, teamMembers),
     );
+    if (filterRole !== 'all') {
+      pows = pows.filter((pow) => {
+        const m = teamMembers.find((tm) => tm.name === pow.submittedBy);
+        return m?.role === filterRole;
+      });
+    }
+    if (filterTeam !== 'all') {
+      pows = pows.filter((pow) => {
+        const m = teamMembers.find((tm) => tm.name === pow.submittedBy);
+        return m?.team === filterTeam || m?.additionalTeams?.includes(filterTeam);
+      });
+    }
     if (filterPerson !== 'all') {
       pows = pows.filter((pow) => pow.submittedBy === filterPerson);
     }
@@ -97,7 +114,8 @@ export default function ProofOfWorkPage() {
       pows = pows.filter((pow) => pow.status === filterStatus);
     }
     return pows;
-  }, [allProofOfWork, filterPerson, filterStatus, user, teamMembers]);
+  }, [allProofOfWork, filterRole, filterTeam, filterPerson, filterStatus, user, teamMembers]);
+
 
   const submittedCount = displayProofOfWork.filter((p) => p.status === 'submitted').length;
   const approvedCount = displayProofOfWork.filter((p) => p.status === 'approved').length;
@@ -201,43 +219,36 @@ export default function ProofOfWorkPage() {
 
         <Card className="border-border">
           <CardHeader>
-            <div className="flex items-center justify-between flex-wrap gap-3">
+            <div className="flex items-center justify-between flex-wrap gap-3 mb-4">
               <CardTitle>
                 {canViewAll ? 'All Submissions' : isTeamHead ? 'Team Submissions' : 'My Submissions'}
               </CardTitle>
-              <div className="flex items-center flex-wrap gap-4">
-                {(canViewAll || isTeamHead) && (
-                  <div className="flex items-center gap-2">
-                    <User className="h-4 w-4 text-gray-400" />
-                    <select
-                      value={filterPerson}
-                      onChange={(e) => setFilterPerson(e.target.value)}
-                      className="px-3.5 py-2.5 rounded-lg border border-gray-300 bg-white text-sm font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 transition-all cursor-pointer hover:border-gray-400 min-w-[160px]"
-                    >
-                      <option value="all">All Members</option>
-                      {submitterNames.map((name) => (
-                        <option key={name} value={name}>
-                          {name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                )}
-                
-                <div className="flex items-center gap-2">
-                  <select
-                    value={filterStatus}
-                    onChange={(e) => setFilterStatus(e.target.value)}
-                    className="px-3.5 py-2.5 rounded-lg border border-gray-300 bg-white text-sm font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 transition-all cursor-pointer hover:border-gray-400 min-w-[160px]"
-                  >
-                    <option value="all">All Statuses</option>
-                    <option value="submitted">Submitted</option>
-                    <option value="approved">Approved</option>
-                    <option value="rejected">Rejected</option>
-                  </select>
-                </div>
-              </div>
             </div>
+            <PageFilterBar
+              selectedRole={filterRole}
+              onRoleChange={setFilterRole}
+              selectedTeam={filterTeam}
+              onTeamChange={setFilterTeam}
+              selectedPerson={filterPerson}
+              onPersonChange={(canViewAll || isTeamHead) ? setFilterPerson : () => {}}
+              showPersonFilter={canViewAll || isTeamHead}
+              selectedStatus={filterStatus}
+              onStatusChange={setFilterStatus}
+              showStatusFilter={true}
+              statusOptions={[
+                { id: 'submitted', label: 'Submitted' },
+                { id: 'approved', label: 'Approved' },
+                { id: 'rejected', label: 'Rejected' },
+                { id: 'revision_requested', label: 'Revision Requested' },
+              ]}
+              visibleMembers={teamMembers}
+              onResetFilters={() => {
+                setFilterRole('all');
+                setFilterTeam('all');
+                setFilterPerson('all');
+                setFilterStatus('all');
+              }}
+            />
           </CardHeader>
           <CardContent>
             <div className="space-y-3">

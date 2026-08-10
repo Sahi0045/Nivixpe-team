@@ -62,9 +62,11 @@ function WorkTrackerContent() {
   const [proofTask, setProofTask] = useState<{ id: string; title: string } | null>(null);
   const [selectedAssignee, setSelectedAssignee] = useState('');
   
+  const [filterRole, setFilterRole] = useState('all');
   const [filterTeam, setFilterTeam] = useState('all');
   const [filterPerson, setFilterPerson] = useState('all');
   const [showCompletedTasks, setShowCompletedTasks] = useState(false);
+
 
   const [allTasks, setAllTasks] = useState<WorkTask[]>([]);
   const [allProofOfWork, setAllProofOfWork] = useState<ProofOfWorkRecord[]>([]);
@@ -173,6 +175,12 @@ function WorkTrackerContent() {
 
   const filteredAssignees = useMemo(() => {
     let result = allAssignees;
+    if (filterRole !== 'all') {
+      result = result.filter(name => {
+        const member = activeTeamMembers.find(m => m.name === name);
+        return member?.role === filterRole;
+      });
+    }
     if (filterTeam !== 'all') {
       result = result.filter(name => {
         const member = activeTeamMembers.find(m => m.name === name);
@@ -183,7 +191,8 @@ function WorkTrackerContent() {
       result = result.filter(name => name === filterPerson);
     }
     return result;
-  }, [allAssignees, filterTeam, filterPerson]);
+  }, [allAssignees, filterRole, filterTeam, filterPerson, activeTeamMembers]);
+
 
   const allCompleted = visibleTasks.filter((t) => t.status === 'completed');
   const allOngoing = visibleTasks.filter((t) => t.status === 'ongoing' && !isOverdue(t));
@@ -495,12 +504,20 @@ function WorkTrackerContent() {
         {/* Filter Bar with extra toggle */}
         <div className="flex flex-wrap gap-4 items-center justify-between">
           <PageFilterBar
-            onTeamChange={setFilterTeam}
-            onPersonChange={setFilterPerson}
+            selectedRole={filterRole}
+            onRoleChange={setFilterRole}
             selectedTeam={filterTeam}
+            onTeamChange={setFilterTeam}
             selectedPerson={filterPerson}
+            onPersonChange={setFilterPerson}
             visibleMembers={activeTeamMembers.filter(m => allAssignees.includes(m.name))}
+            onResetFilters={() => {
+              setFilterRole('all');
+              setFilterTeam('all');
+              setFilterPerson('all');
+            }}
             extraFilters={
+
               <div className="flex items-center gap-4 ml-auto">
                 <div className="flex items-center gap-2 bg-white px-4 py-2 border rounded-xl shadow-sm cursor-pointer" onClick={() => setShowCompletedTasks(!showCompletedTasks)}>
                   <div className={`w-10 h-6 rounded-full transition-colors flex items-center ${showCompletedTasks ? 'bg-blue-600' : 'bg-slate-300'}`}>
