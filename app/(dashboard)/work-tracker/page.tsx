@@ -123,10 +123,15 @@ function WorkTrackerContent() {
   };
 
   const handleDeleteTask = async (taskId: string, task: any) => {
-    if (!canDeleteAllocatedTask(user, task)) return;
+    const targetId = taskId || task?.id || task?._id;
+    if (!targetId) return;
+    if (!canDeleteAllocatedTask(user, task)) {
+      toast.error("You don't have permission to delete this task.");
+      return;
+    }
     if (!(await confirmDelete('task', task.title))) return;
     try {
-      await supabaseDb.deleteTask(taskId);
+      await supabaseDb.deleteTask(targetId);
       await loadData();
       toast.success('Task deleted successfully!');
     } catch (error) {
@@ -379,7 +384,7 @@ function WorkTrackerContent() {
                                   <Edit className="h-5 w-5" />
                                 </button>
                                 <button
-                                  onClick={() => handleDeleteTask(task._id, task)}
+                                  onClick={() => handleDeleteTask(task.id || task._id, task)}
                                   className="text-red-500 hover:text-red-700 p-2 rounded-lg hover:bg-red-50 transition-all"
                                   title="Delete task"
                                 >

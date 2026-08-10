@@ -405,21 +405,36 @@ export function canAccessAdminPanel(user: User | null): boolean {
   return user.isSuperAdmin || user.role === 'CTO' || user.role === 'COO' || user.role === 'Product Manager';
 }
 
-export function canDeleteAllocatedTask(user: User | null, task: any): boolean {
+export function canDeleteAllocatedTask(user: User | null, task?: any): boolean {
   if (!user) return false;
   
-  // CEO, CTO, COO, and Product Manager can edit/delete any task
-  if (user.isSuperAdmin || user.role === 'CTO' || user.role === 'COO' || user.role === 'Product Manager') {
+  const allowedRoles = [
+    'CEO',
+    'Admin',
+    'CTO',
+    'COO',
+    'CSO',
+    'Product Manager',
+    'Project Manager',
+  ];
+  
+  if (
+    user.isSuperAdmin ||
+    user.accessLevel === 'admin' ||
+    user.accessLevel === 'manager' ||
+    allowedRoles.includes(user.role)
+  ) {
     return true;
   }
   
-  if (!task.createdBy) return false;
+  if (!task || !task.createdBy) return false;
 
   const deleterRoles = ['CMO', 'DCMO', 'DCSO'];
   const hasRole = deleterRoles.includes(user.role);
   if (!hasRole) return false;
   return task.createdBy === user.name;
 }
+
 
 export function canManageTeamMembers(user: User | null): boolean {
   if (!user) return false;

@@ -352,7 +352,9 @@ export default function AdminPage() {
           proofOfWork={allProofOfWork}
           meetings={allMeetings}
           driveDocs={allDriveDocs}
+          onDeleteTask={handleDeleteWork}
         />
+
 
         <AddWorkForm onAddWork={handleAddWork} members={allMembers} />
 

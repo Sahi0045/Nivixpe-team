@@ -1266,6 +1266,7 @@ export const supabaseDb = {
   },
 
   async deleteTask(id: string): Promise<void> {
+    if (!id) return;
     localWorkTasks = localWorkTasks.filter((t) => String(t.id) !== String(id) && String((t as any)._id) !== String(id));
     if (isSupabaseConfigured) {
       try {
@@ -1275,6 +1276,7 @@ export const supabaseDb = {
     }
     notifySubscribers('work_tasks');
   },
+
 
 
   // --- ATTENDANCE ---

@@ -17,7 +17,10 @@ import {
   Video,
   CheckCircle,
   AlertCircle,
+  Trash2,
 } from 'lucide-react';
+import { confirmDelete } from '@/lib/confirm-delete';
+
 import { cn } from '@/lib/utils';
 
 interface TeamMember {
@@ -39,6 +42,7 @@ interface AdminIndividualTrackersProps {
   proofOfWork: any[];
   meetings: any[];
   driveDocs: any[];
+  onDeleteTask?: (id: string) => void;
 }
 
 function SectionTitle({ icon: Icon, title, count }: { icon: any; title: string; count: number }) {
@@ -59,6 +63,7 @@ export function AdminIndividualTrackers({
   proofOfWork,
   meetings,
   driveDocs,
+  onDeleteTask,
 }: AdminIndividualTrackersProps) {
   const [openMember, setOpenMember] = useState<string | null>(null);
 
@@ -157,17 +162,32 @@ export function AdminIndividualTrackers({
                               <th className="text-left p-2">Status</th>
                               <th className="text-left p-2">Due</th>
                               <th className="text-left p-2">Assigned By</th>
+                              <th className="text-center p-2">Action</th>
                             </tr>
                           </thead>
                           <tbody>
                             {memberTasks.map((task) => (
-                              <tr key={task._id} className="border-b hover:bg-muted/30">
+                              <tr key={task.id || task._id} className="border-b hover:bg-muted/30">
                                 <td className="p-2 font-medium">{task.title}</td>
                                 <td className="p-2">
                                   <span className="text-xs px-2 py-1 rounded bg-muted capitalize">{task.status}</span>
                                 </td>
                                 <td className="p-2 text-muted-foreground">{task.dueDate}</td>
                                 <td className="p-2 text-muted-foreground">{task.createdBy || '—'}</td>
+                                <td className="p-2 text-center">
+                                  {onDeleteTask && (
+                                    <button
+                                      onClick={async () => {
+                                        if (!(await confirmDelete('task', task.title))) return;
+                                        onDeleteTask(task.id || task._id);
+                                      }}
+                                      className="text-red-500 hover:text-red-700 p-1 rounded hover:bg-red-50 transition-all inline-flex items-center"
+                                      title="Delete task"
+                                    >
+                                      <Trash2 className="h-4 w-4" />
+                                    </button>
+                                  )}
+                                </td>
                               </tr>
                             ))}
                           </tbody>
