@@ -5,13 +5,15 @@ import { useAuth } from '@/app/providers';
 import { Header } from '@/components/header';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { Search, User as UserIcon, Calendar, Clock, X, FolderOpen, Shield, CheckSquare, Square, Plus } from 'lucide-react';
+import { Search, User as UserIcon, Calendar, Clock, X, FolderOpen, Shield, CheckSquare, Square, Plus, Trash2, Edit2 } from 'lucide-react';
 import { PageFilterBar } from '@/components/page-filter-bar';
 import { DriveFolder, DRIVE_FOLDERS } from '@/lib/drive-access';
 import { supabaseDb, AttendanceRecord, TeamMember } from '@/lib/supabase-db';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
 import { normalizeEmail } from '@/lib/utils';
+import { canManageTeamMembers } from '@/lib/rbac';
+import { confirmDelete } from '@/lib/confirm-delete';
 
 export default function TeamDirectoryPage() {
   const { user } = useAuth();
@@ -19,6 +21,7 @@ export default function TeamDirectoryPage() {
   const [filterRole, setFilterRole] = useState('all');
   const [filterTeam, setFilterTeam] = useState('all');
   const [selectedMember, setSelectedMember] = useState<TeamMember | null>(null);
+  const [editingMember, setEditingMember] = useState<TeamMember | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
   const [newMemberForm, setNewMemberForm] = useState({
     name: '',
@@ -46,7 +49,21 @@ export default function TeamDirectoryPage() {
     return () => unsub();
   }, []);
 
-  const canAddMember = user?.isSuperAdmin || user?.role === 'CEO' || user?.role === 'CTO' || user?.role === 'COO';
+  const canManage = canManageTeamMembers(user);
+  const canAddMember = canManage;
+
+  const handleRemoveMember = async (member: TeamMember, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!(await confirmDelete('team member', member.name))) return;
+
+    try {
+      await supabaseDb.deleteTeamMember(member.id);
+      toast.success(`Removed ${member.name} from team directory`);
+      loadData();
+    } catch {
+      toast.error('Failed to remove team member');
+    }
+  };
 
   const handleAddMember = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -148,6 +165,9 @@ export default function TeamDirectoryPage() {
                     <th className="text-left py-4 px-6 font-medium text-muted-foreground">Role</th>
                     <th className="text-left py-4 px-6 font-medium text-muted-foreground">Department</th>
                     <th className="text-left py-4 px-6 font-medium text-muted-foreground">Status</th>
+                    {canManage && (
+                      <th className="text-right py-4 px-6 font-medium text-muted-foreground">Actions</th>
+                    )}
                   </tr>
                 </thead>
                 <tbody>
@@ -183,10 +203,34 @@ export default function TeamDirectoryPage() {
                           </span>
                         </div>
                       </td>
+                      {canManage && (
+                        <td className="py-4 px-6 text-right" onClick={(e) => e.stopPropagation()}>
+                          <div className="flex items-center justify-end gap-1">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setEditingMember(member);
+                              }}
+                              title={`Change role & info for ${member.name}`}
+                              className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors cursor-pointer"
+                            >
+                              <Edit2 className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={(e) => handleRemoveMember(member, e)}
+                              title={`Remove ${member.name}`}
+                              className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </td>
+                      )}
                     </tr>
                   ))}
                 </tbody>
               </table>
+
             </div>
           </CardContent>
         </Card>
@@ -299,9 +343,140 @@ export default function TeamDirectoryPage() {
           currentUser={user}
         />
       )}
+
+      {editingMember && (
+        <EditRoleModal 
+          member={editingMember} 
+          onClose={() => setEditingMember(null)} 
+          onSaved={loadData}
+        />
+      )}
     </div>
   );
 }
+
+function EditRoleModal({
+  member,
+  onClose,
+  onSaved,
+}: {
+  member: TeamMember;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [role, setRole] = useState(member.role);
+  const [department, setDepartment] = useState(member.department || 'Technology');
+  const [team, setTeam] = useState(member.team || 'Technical');
+  const [saving, setSaving] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSaving(true);
+    try {
+      await supabaseDb.updateTeamMember(member.id, {
+        role: role as any,
+        department,
+        team: team as any,
+      });
+      toast.success(`Updated role & info for ${member.name}`);
+      onSaved();
+      onClose();
+    } catch {
+      toast.error('Failed to update team member');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
+      <Card className="w-full max-w-md shadow-2xl animate-in fade-in zoom-in duration-200">
+        <CardHeader className="flex flex-row items-center justify-between border-b pb-4">
+          <CardTitle className="text-xl font-bold">Edit Role & Info: {member.name}</CardTitle>
+          <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-full transition-colors">
+            <X className="h-5 w-5" />
+          </button>
+        </CardHeader>
+        <form onSubmit={handleSubmit}>
+          <CardContent className="p-6 space-y-4">
+            <div>
+              <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1">
+                Role
+              </label>
+              <select
+                value={role}
+                onChange={(e) => setRole(e.target.value as any)}
+                className="w-full px-3 py-2 border border-input rounded-lg bg-background text-sm font-medium"
+              >
+                <option value="CEO">CEO</option>
+                <option value="CTO">CTO</option>
+                <option value="COO">COO</option>
+                <option value="CSO">CSO</option>
+                <option value="DCSO">DCSO</option>
+                <option value="DCMO">DCMO</option>
+                <option value="Legal">Legal</option>
+                <option value="Legal Intern">Legal Intern</option>
+                <option value="Designer">Designer</option>
+                <option value="Developer 1">Developer 1</option>
+                <option value="Developer 2">Developer 2</option>
+                <option value="Developer 3">Developer 3</option>
+                <option value="Product Manager">Product Manager</option>
+                <option value="Admin">Admin</option>
+              </select>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1">
+                  Department
+                </label>
+                <Input
+                  value={department}
+                  onChange={(e) => setDepartment(e.target.value)}
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1">
+                  Primary Team
+                </label>
+                <select
+                  value={team}
+                  onChange={(e) => setTeam(e.target.value as any)}
+                  className="w-full px-3 py-2 border border-input rounded-lg bg-background text-sm font-medium"
+                >
+                  <option value="Business">Business</option>
+                  <option value="Technical">Technical</option>
+                  <option value="Marketing">Marketing</option>
+                  <option value="Legal">Legal</option>
+                  <option value="Design">Design</option>
+                  <option value="HR">HR</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="flex gap-2 pt-3">
+              <button
+                type="button"
+                onClick={onClose}
+                className="flex-1 px-4 py-2 border border-slate-200 text-slate-700 rounded-lg text-sm font-medium hover:bg-slate-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={saving}
+                className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-all disabled:opacity-50"
+              >
+                {saving ? 'Saving...' : 'Save Changes'}
+              </button>
+            </div>
+          </CardContent>
+        </form>
+      </Card>
+    </div>
+  );
+}
+
 
 function AttendanceModal({ member, onClose, currentUser }: { member: TeamMember, onClose: () => void, currentUser: any }) {
   const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([]);

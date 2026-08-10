@@ -1116,6 +1116,47 @@ export const supabaseDb = {
     return newMember;
   },
 
+  async deleteTeamMember(id: string): Promise<boolean> {
+    // Sync local state
+    const index = localTeamMembers.findIndex((m) => String(m.id) === String(id) || m.email.toLowerCase() === String(id).toLowerCase());
+    if (index !== -1) {
+      localTeamMembers.splice(index, 1);
+    } else {
+      localTeamMembers = localTeamMembers.filter((m) => String(m.id) !== String(id) && m.email.toLowerCase() !== String(id).toLowerCase());
+    }
+
+    if (isSupabaseConfigured) {
+      try {
+        await supabase.from('team_members').delete().eq('id', id);
+      } catch {}
+    }
+    return true;
+  },
+
+  async updateTeamMember(id: string, updates: Partial<TeamMember>): Promise<boolean> {
+    const member = localTeamMembers.find((m) => String(m.id) === String(id) || m.email.toLowerCase() === String(id).toLowerCase());
+    if (member) {
+      Object.assign(member, updates);
+    }
+
+    if (isSupabaseConfigured) {
+      try {
+        const dbUpdates: any = {};
+        if (updates.name !== undefined) dbUpdates.name = updates.name;
+        if (updates.email !== undefined) dbUpdates.email = updates.email;
+        if (updates.role !== undefined) dbUpdates.role = updates.role;
+        if (updates.department !== undefined) dbUpdates.department = updates.department;
+        if (updates.team !== undefined) dbUpdates.team = updates.team;
+        if (updates.status !== undefined) dbUpdates.status = updates.status;
+
+        await supabase.from('team_members').update(dbUpdates).eq('id', id);
+      } catch {}
+    }
+    return true;
+  },
+
+
+
   // --- WORK TASKS ---
   async getWorkTasks(): Promise<WorkTask[]> {
     if (!isSupabaseConfigured) return localWorkTasks;

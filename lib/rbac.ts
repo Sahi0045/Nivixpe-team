@@ -404,3 +404,16 @@ export function canDeleteAllocatedTask(user: User | null, task: any): boolean {
   if (!hasRole) return false;
   return task.createdBy === user.name;
 }
+
+export function canManageTeamMembers(user: User | null): boolean {
+  if (!user) return false;
+  return (
+    user.isSuperAdmin === true ||
+    user.role === 'CEO' ||
+    user.role === 'Admin' ||
+    user.role === 'CTO' ||
+    user.role === 'COO' ||
+    user.accessLevel === 'admin'
+  );
+}
+
