@@ -20,6 +20,17 @@ export type {
   Meeting,
 };
 
+const subscribers: Record<string, Set<() => void>> = {};
+
+function notifySubscribers(table: string) {
+  if (subscribers[table]) {
+    subscribers[table].forEach((cb) => {
+      try { cb(); } catch {}
+    });
+  }
+}
+
+
 export interface ProofOfWorkRecord {
   id: string;
   taskId?: string;
@@ -1110,9 +1121,13 @@ export const supabaseDb = {
           status: newMember.status,
           join_date: newMember.joinDate,
         }]).select();
-        if (!error && data && data[0]) return data[0] as TeamMember;
+        if (!error && data && data[0]) {
+          notifySubscribers('team_members');
+          return data[0] as TeamMember;
+        }
       } catch {}
     }
+    notifySubscribers('team_members');
     return newMember;
   },
 
@@ -1130,6 +1145,7 @@ export const supabaseDb = {
         await supabase.from('team_members').delete().eq('id', id);
       } catch {}
     }
+    notifySubscribers('team_members');
     return true;
   },
 
@@ -1152,8 +1168,10 @@ export const supabaseDb = {
         await supabase.from('team_members').update(dbUpdates).eq('id', id);
       } catch {}
     }
+    notifySubscribers('team_members');
     return true;
   },
+
 
 
 
@@ -1166,12 +1184,12 @@ export const supabaseDb = {
       if (!data || data.length === 0) return localWorkTasks;
       // Map snake_case DB columns → camelCase WorkTask
       return data.map((t: any) => ({
-        id: t.id,
+        id: String(t.id || t._id),
         title: t.title,
         assignee: t.assignee,
         assigneeRole: t.assignee_role || t.assigneeRole,
         status: t.status,
-        dueDate: t.due_date || t.dueDate,
+        dueDate: t.due_date || t.dueDate || 'Ongoing',
         completedDate: t.completed_date || t.completedDate,
         priority: t.priority,
         description: t.description,
@@ -1198,22 +1216,25 @@ export const supabaseDb = {
           assignee: newTask.assignee,
           assignee_role: newTask.assigneeRole,
           status: newTask.status,
-          due_date: newTask.dueDate,
+          due_date: newTask.dueDate || 'Ongoing',
           completed_date: newTask.completedDate || null,
           priority: newTask.priority,
           description: newTask.description || null,
           comments: newTask.comments || null,
           owner: newTask.owner || null,
           coordination_with: newTask.coordinationWith || null,
+          created_by: (newTask as any).createdBy || newTask.owner || null,
+
         }]);
         if (error) console.warn('[supabaseDb] createTask error:', error.message);
       } catch (e) { console.warn('[supabaseDb] createTask exception:', e); }
     }
+    notifySubscribers('work_tasks');
     return newTask;
   },
 
   async updateTask(id: string, updates: Partial<WorkTask>): Promise<void> {
-    localWorkTasks = localWorkTasks.map((t) => (t.id === id ? { ...t, ...updates } : t));
+    localWorkTasks = localWorkTasks.map((t) => (String(t.id) === String(id) || String((t as any)._id) === String(id) ? { ...t, ...updates } : t));
     if (isSupabaseConfigured) {
       try {
         // Map camelCase → snake_case
@@ -1222,7 +1243,7 @@ export const supabaseDb = {
         if (updates.assignee !== undefined) dbUpdates.assignee = updates.assignee;
         if (updates.assigneeRole !== undefined) dbUpdates.assignee_role = updates.assigneeRole;
         if (updates.status !== undefined) dbUpdates.status = updates.status;
-        if (updates.dueDate !== undefined) dbUpdates.due_date = updates.dueDate;
+        if (updates.dueDate !== undefined) dbUpdates.due_date = updates.dueDate || 'Ongoing';
         if (updates.completedDate !== undefined) dbUpdates.completed_date = updates.completedDate;
         if (updates.priority !== undefined) dbUpdates.priority = updates.priority;
         if (updates.description !== undefined) dbUpdates.description = updates.description;
@@ -1233,17 +1254,20 @@ export const supabaseDb = {
         if (error) console.warn('[supabaseDb] updateTask error:', error.message);
       } catch (e) { console.warn('[supabaseDb] updateTask exception:', e); }
     }
+    notifySubscribers('work_tasks');
   },
 
   async deleteTask(id: string): Promise<void> {
-    localWorkTasks = localWorkTasks.filter((t) => t.id !== id);
+    localWorkTasks = localWorkTasks.filter((t) => String(t.id) !== String(id) && String((t as any)._id) !== String(id));
     if (isSupabaseConfigured) {
       try {
         const { error } = await supabase.from('work_tasks').delete().eq('id', id);
         if (error) console.warn('[supabaseDb] deleteTask error:', error.message);
       } catch (e) { console.warn('[supabaseDb] deleteTask exception:', e); }
     }
+    notifySubscribers('work_tasks');
   },
+
 
   // --- ATTENDANCE ---
   async getAttendanceRecords(): Promise<AttendanceRecord[]> {
@@ -1632,24 +1656,39 @@ export const supabaseDb = {
 
   // --- REAL-TIME SUBSCRIPTION HELPER ---
   subscribeToChanges(table: string, callback: () => void): () => void {
-    if (!isSupabaseConfigured) return () => {};
-    try {
-      const channel = supabase
-        .channel(`realtime_${table}_${Date.now()}`)
-        .on(
-          'postgres_changes',
-          { event: '*', schema: 'public', table },
-          () => {
-            callback();
-          }
-        )
-        .subscribe();
-
-      return () => {
-        supabase.removeChannel(channel);
-      };
-    } catch {
-      return () => {};
+    if (!subscribers[table]) {
+      subscribers[table] = new Set();
     }
+    subscribers[table].add(callback);
+
+    let supabaseUnsub = () => {};
+    if (isSupabaseConfigured) {
+      try {
+        const channel = supabase
+          .channel(`realtime_${table}_${Math.random()}`)
+          .on(
+            'postgres_changes',
+            { event: '*', schema: 'public', table },
+            () => {
+              callback();
+            }
+          )
+          .subscribe();
+
+        supabaseUnsub = () => {
+          supabase.removeChannel(channel);
+        };
+      } catch {
+        supabaseUnsub = () => {};
+      }
+    }
+
+    return () => {
+      if (subscribers[table]) {
+        subscribers[table].delete(callback);
+      }
+      supabaseUnsub();
+    };
   },
+
 };

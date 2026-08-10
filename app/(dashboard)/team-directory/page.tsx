@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/app/providers';
+import { ALL_ROLES } from '@/lib/auth';
+
 import { Header } from '@/components/header';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -263,20 +265,11 @@ export default function TeamDirectoryPage() {
                     onChange={(e) => setNewMemberForm({ ...newMemberForm, role: e.target.value as any })}
                     className="w-full px-3 py-2 border border-input rounded-lg bg-background text-sm font-medium"
                   >
-                    <option value="CEO">CEO</option>
-                    <option value="CTO">CTO</option>
-                    <option value="COO">COO</option>
-                    <option value="CSO">CSO</option>
-                    <option value="DCSO">DCSO</option>
-                    <option value="DCMO">DCMO</option>
-                    <option value="Legal">Legal</option>
-                    <option value="Legal Intern">Legal Intern</option>
-                    <option value="Designer">Designer</option>
-                    <option value="Developer 1">Developer 1</option>
-                    <option value="Developer 2">Developer 2</option>
-                    <option value="Developer 3">Developer 3</option>
-                    <option value="Product Manager">Product Manager</option>
+                    {ALL_ROLES.map((r) => (
+                      <option key={r} value={r}>{r}</option>
+                    ))}
                   </select>
+
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
@@ -408,21 +401,11 @@ function EditRoleModal({
                 onChange={(e) => setRole(e.target.value as any)}
                 className="w-full px-3 py-2 border border-input rounded-lg bg-background text-sm font-medium"
               >
-                <option value="CEO">CEO</option>
-                <option value="CTO">CTO</option>
-                <option value="COO">COO</option>
-                <option value="CSO">CSO</option>
-                <option value="DCSO">DCSO</option>
-                <option value="DCMO">DCMO</option>
-                <option value="Legal">Legal</option>
-                <option value="Legal Intern">Legal Intern</option>
-                <option value="Designer">Designer</option>
-                <option value="Developer 1">Developer 1</option>
-                <option value="Developer 2">Developer 2</option>
-                <option value="Developer 3">Developer 3</option>
-                <option value="Product Manager">Product Manager</option>
-                <option value="Admin">Admin</option>
+                {ALL_ROLES.map((r) => (
+                  <option key={r} value={r}>{r}</option>
+                ))}
               </select>
+
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>

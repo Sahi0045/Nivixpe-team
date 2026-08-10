@@ -210,12 +210,28 @@ export const ROLE_PERMISSIONS: Record<string, string[]> = {
   ],
 };
 
+const DEFAULT_EMPLOYEE_PAGES = [
+  'dashboard',
+  'team-directory',
+  'work-tracker',
+  'work-allocation',
+  'attendance',
+  'attendance-history',
+  'leave-management',
+  'meetings',
+  'proof-of-work',
+  'drive',
+  'notifications',
+  'settings',
+];
+
 export function canAccessPage(user: User | null, page: string): boolean {
   if (!user) return false;
   if (user.isSuperAdmin) return true; // CEO has access to everything
-  const permissions = ROLE_PERMISSIONS[user.role] || [];
+  const permissions = ROLE_PERMISSIONS[user.role] || DEFAULT_EMPLOYEE_PAGES;
   return permissions.includes(page);
 }
+
 
 export function canEditTeamData(user: User | null): boolean {
   if (!user) return false;

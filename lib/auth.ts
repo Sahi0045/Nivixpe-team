@@ -1,4 +1,74 @@
-export type UserRole = 'CEO' | 'CTO' | 'COO' | 'CSO' | 'CMO' | 'DCSO' | 'DCMO' | 'Legal' | 'Legal Intern' | 'Designer' | 'Admin' | 'Developer 1' | 'Developer 2' | 'Developer 3' | 'Product Manager';
+export type UserRole =
+  | 'CEO'
+  | 'CTO'
+  | 'COO'
+  | 'CSO'
+  | 'CMO'
+  | 'DCSO'
+  | 'DCMO'
+  | 'Legal'
+  | 'Legal Intern'
+  | 'Designer'
+  | 'Design Intern'
+  | 'Admin'
+  | 'Developer'
+  | 'Developer 1'
+  | 'Developer 2'
+  | 'Developer 3'
+  | 'Senior Developer'
+  | 'Tech Lead'
+  | 'Product Manager'
+  | 'Project Manager'
+  | 'BDA'
+  | 'BDE'
+  | 'Business Officer'
+  | 'Business Analyst'
+  | 'Marketing Manager'
+  | 'Marketing Associate'
+  | 'Marketing Intern'
+  | 'HR'
+  | 'HR Manager'
+  | 'HR Intern'
+  | 'Operations Manager'
+  | 'Intern'
+  | 'Executive';
+
+export const ALL_ROLES: UserRole[] = [
+  'CEO',
+  'CTO',
+  'COO',
+  'CSO',
+  'DCSO',
+  'DCMO',
+  'CMO',
+  'Admin',
+  'BDA',
+  'BDE',
+  'Business Officer',
+  'Business Analyst',
+  'Product Manager',
+  'Project Manager',
+  'Developer',
+  'Developer 1',
+  'Developer 2',
+  'Developer 3',
+  'Senior Developer',
+  'Tech Lead',
+  'Designer',
+  'Design Intern',
+  'Marketing Manager',
+  'Marketing Associate',
+  'Marketing Intern',
+  'Legal',
+  'Legal Intern',
+  'HR',
+  'HR Manager',
+  'HR Intern',
+  'Operations Manager',
+  'Intern',
+  'Executive',
+];
+
 
 export interface User {
   id: string;
