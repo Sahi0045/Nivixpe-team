@@ -25,8 +25,10 @@ import {
   ShieldCheck,
   ChevronDown,
   ChevronUp,
-  AlertTriangle
+  AlertTriangle,
+  Trash2
 } from 'lucide-react';
+
 
 import { useAuth } from '@/app/providers';
 import { 
@@ -484,6 +486,21 @@ export default function AttendanceHistoryPage() {
       toast.error('Failed to reject correction request.');
     }
   };
+
+  // Delete Correction Request
+  const handleDeleteCorrection = async (id: string) => {
+    if (!user) return;
+    if (!confirm('Are you sure you want to remove this correction request from the database?')) return;
+    try {
+      await supabaseDb.deleteAttendanceCorrectionRequest(id);
+      toast.success('Correction request removed from database.');
+      await loadData();
+    } catch (e) {
+      console.error(e);
+      toast.error('Failed to remove correction request.');
+    }
+  };
+
 
   // Export Matrix CSV
   const handleExportMatrixCSV = () => {
@@ -1040,9 +1057,8 @@ export default function AttendanceHistoryPage() {
                               {corr.status === 'rejected' && (
                                 <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-red-100 text-red-800">Rejected</span>
                               )}
-                            </td>
-                            <td className="p-3 text-right space-x-2">
-                              {canManageTeam && corr.status === 'pending' ? (
+                                                   <td className="p-3 text-right space-x-2 flex items-center justify-end">
+                              {canManageTeam && corr.status === 'pending' && (
                                 <>
                                   <button
                                     onClick={() => handleApproveCorrection(corr.id)}
@@ -1057,10 +1073,18 @@ export default function AttendanceHistoryPage() {
                                     Reject
                                   </button>
                                 </>
-                              ) : (
-                                <span className="text-slate-400 text-xs">—</span>
+                              )}
+                              {(canManageTeam || isMine) && (
+                                <button
+                                  onClick={() => handleDeleteCorrection(corr.id)}
+                                  className="p-1 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded transition-all"
+                                  title="Remove from database"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </button>
                               )}
                             </td>
+         </td>
                           </tr>
                         );
                       })}

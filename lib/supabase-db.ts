@@ -177,22 +177,8 @@ let localAttendanceRecords: AttendanceRecord[] = [
   }
 ];
 
-let localAttendanceCorrections: AttendanceCorrectionRequest[] = [
-  {
-    id: 'corr-1',
-    attendanceId: 'att-105',
-    employeeName: 'Vinisha',
-    employeeEmail: 'vinisha@nivixpe.com',
-    date: '2026-08-14',
-    currentLogin: '09:30 AM',
-    currentLogout: undefined,
-    requestedLogin: '09:30 AM',
-    requestedLogout: '06:20 PM',
-    reason: 'Forgot to check out on 14 August. I worked until 6:20 PM.',
-    status: 'pending',
-    createdAt: '2026-08-14T18:30:00Z'
-  }
-];
+let localAttendanceCorrections: AttendanceCorrectionRequest[] = [];
+
 
 export function getUserAttendanceSummary(emailOrName: string, records: AttendanceRecord[], startDate?: string, endDate?: string) {
   const normInput = normalizeName(emailOrName);
@@ -1534,17 +1520,22 @@ export const supabaseDb = {
         const { data, error } = await supabase.from('attendance_records').select('*');
         if (error) { console.warn('[supabaseDb] getAttendanceRecords error:', error.message); }
         else if (data && data.length > 0) {
-          // Also update local cache so UI stays consistent
           localAttendanceRecords = data.map((r: any) => ({
             id: String(r.id),
             date: r.date,
             email: r.email,
+            name: r.name ?? undefined,
             loginTime: r.login_time ?? r.loginTime,
             logoutTime: r.logout_time ?? r.logoutTime,
             status: r.status,
             workHours: r.work_hours ?? r.workHours ?? 0,
+            lateMinutes: r.late_minutes ?? r.lateMinutes ?? 0,
+            expectedLogin: r.expected_login ?? r.expectedLogin ?? '09:30 AM',
+            correctionStatus: r.correction_status ?? r.correctionStatus ?? 'none',
+            leaveRequestId: r.leave_request_id ?? r.leaveRequestId,
             currentSessionStart: r.current_session_start ?? r.currentSessionStart ?? null,
             isPaused: r.is_paused ?? r.isPaused ?? false,
+            auditLog: r.audit_log ?? r.auditLog ?? [],
           })) as AttendanceRecord[];
           return localAttendanceRecords;
         }
@@ -1554,7 +1545,6 @@ export const supabaseDb = {
   },
 
   async markAttendance(record: Omit<AttendanceRecord, 'id'> & { id?: string; _id?: string }): Promise<void> {
-    // 1. Always update local cache immediately for instant UI feedback
     const index = localAttendanceRecords.findIndex(
       (r) => r.date === record.date && r.email === record.email
     );
@@ -1564,7 +1554,6 @@ export const supabaseDb = {
       localAttendanceRecords.push({ ...record });
     }
 
-    // 2. Persist to Supabase - only write columns that exist in the schema
     if (isSupabaseConfigured) {
       try {
         const payload: any = {
@@ -1573,18 +1562,22 @@ export const supabaseDb = {
           login_time: record.loginTime ?? null,
           logout_time: record.logoutTime ?? null,
           status: record.status,
-          // These columns require running supabase/migrations/add_attendance_columns.sql first
           work_hours: record.workHours ?? 0,
+          late_minutes: record.lateMinutes ?? 0,
+          expected_login: record.expectedLogin ?? '09:30 AM',
+          correction_status: record.correctionStatus ?? 'none',
+          leave_request_id: record.leaveRequestId ?? null,
+          audit_log: record.auditLog ?? [],
           current_session_start: record.currentSessionStart ?? null,
           is_paused: record.isPaused ?? false,
         };
         const { error } = await supabase
           .from('attendance_records')
           .upsert([payload], { onConflict: 'date,email' });
+
         if (error) {
-          // If work_hours column doesn't exist yet, retry with base columns only
-          if (error.message?.includes('work_hours') || error.message?.includes('current_session') || error.message?.includes('is_paused')) {
-            console.warn('[supabaseDb] Missing attendance columns - run add_attendance_columns.sql migration. Retrying with base columns only.');
+          if (error.message?.includes('work_hours') || error.message?.includes('correction_status') || error.message?.includes('audit_log')) {
+            console.warn('[supabaseDb] Retrying markAttendance with base columns.');
             const { error: e2 } = await supabase.from('attendance_records').upsert([{
               date: record.date,
               email: record.email,
@@ -1602,7 +1595,37 @@ export const supabaseDb = {
     notifySubscribers('attendance_records');
   },
 
+
   async getAttendanceCorrectionRequests(): Promise<AttendanceCorrectionRequest[]> {
+    if (isSupabaseConfigured) {
+      try {
+        const { data, error } = await supabase.from('attendance_corrections').select('*');
+        if (error) {
+          console.warn('[supabaseDb] getAttendanceCorrectionRequests error:', error.message);
+        } else if (data && data.length > 0) {
+          localAttendanceCorrections = data.map((r: any) => ({
+            id: String(r.id),
+            attendanceId: r.attendance_id ? String(r.attendance_id) : undefined,
+            employeeName: r.employee_name || r.employeeName,
+            employeeEmail: r.employee_email || r.employeeEmail,
+            date: r.date,
+            currentLogin: r.current_login || r.currentLogin,
+            currentLogout: r.current_logout || r.currentLogout,
+            requestedLogin: r.requested_login || r.requestedLogin,
+            requestedLogout: r.requested_logout || r.requestedLogout,
+            reason: r.reason,
+            attachmentUrl: r.attachment_url || r.attachmentUrl,
+            status: r.status,
+            reviewedBy: r.reviewed_by || r.reviewedBy,
+            rejectionReason: r.rejection_reason || r.rejectionReason,
+            createdAt: r.created_at || r.createdAt,
+          }));
+          return localAttendanceCorrections;
+        }
+      } catch (e) {
+        console.warn('[supabaseDb] getAttendanceCorrectionRequests exception:', e);
+      }
+    }
     return localAttendanceCorrections;
   },
 
@@ -1620,21 +1643,46 @@ export const supabaseDb = {
         String(r.id) === String(newReq.attendanceId) ? { ...r, correctionStatus: 'pending' } : r
       );
     }
+
+    if (isSupabaseConfigured) {
+      try {
+        const { error } = await supabase.from('attendance_corrections').insert([{
+          id: newReq.id,
+          attendance_id: newReq.attendanceId ?? null,
+          employee_name: newReq.employeeName,
+          employee_email: newReq.employeeEmail,
+          date: newReq.date,
+          current_login: newReq.currentLogin ?? null,
+          current_logout: newReq.currentLogout ?? null,
+          requested_login: newReq.requestedLogin,
+          requested_logout: newReq.requestedLogout,
+          reason: newReq.reason,
+          attachment_url: newReq.attachmentUrl ?? null,
+          status: newReq.status,
+          created_at: newReq.createdAt,
+        }]);
+        if (error) console.warn('[supabaseDb] createAttendanceCorrectionRequest error:', error.message);
+      } catch (e) { console.warn('[supabaseDb] createAttendanceCorrectionRequest exception:', e); }
+    }
+
     notifySubscribers('attendance_records');
     return newReq;
   },
 
   async reviewAttendanceCorrectionRequest(id: string, status: 'approved' | 'rejected', reviewerName: string, rejectionReason?: string): Promise<void> {
     const corrIndex = localAttendanceCorrections.findIndex((c) => c.id === id);
+    let targetCorr: AttendanceCorrectionRequest | null = null;
     if (corrIndex >= 0) {
-      const corr = localAttendanceCorrections[corrIndex];
       localAttendanceCorrections[corrIndex] = {
-        ...corr,
+        ...localAttendanceCorrections[corrIndex],
         status,
         reviewedBy: reviewerName,
         rejectionReason: status === 'rejected' ? rejectionReason : undefined,
       };
+      targetCorr = localAttendanceCorrections[corrIndex];
+    }
 
+    if (targetCorr) {
       if (status === 'approved') {
         let workMins = 480;
         try {
@@ -1647,44 +1695,72 @@ export const supabaseDb = {
             if (ampm === 'AM' && h === 12) h = 0;
             return h * 60 + m;
           };
-          const startM = parseTimeStr(corr.requestedLogin);
-          const endM = parseTimeStr(corr.requestedLogout);
+          const startM = parseTimeStr(targetCorr.requestedLogin);
+          const endM = parseTimeStr(targetCorr.requestedLogout);
           if (endM > startM) workMins = endM - startM;
         } catch {}
 
         const targetRecord = localAttendanceRecords.find(
-          (r) => (corr.attendanceId && String(r.id) === String(corr.attendanceId)) || (r.date === corr.date && r.email === corr.employeeEmail)
+          (r) => (targetCorr?.attendanceId && String(r.id) === String(targetCorr.attendanceId)) || (r.date === targetCorr?.date && r.email === targetCorr?.employeeEmail)
         );
 
-        if (targetRecord) {
-          const newAuditEntry = {
-            timestamp: new Date().toISOString(),
-            action: 'Correction Approved',
-            actor: reviewerName,
-            details: `Correction approved by ${reviewerName}: Login ${corr.requestedLogin}, Logout ${corr.requestedLogout}`,
-          };
-          const auditLog = targetRecord.auditLog || [];
+        const newAuditEntry = {
+          timestamp: new Date().toISOString(),
+          action: 'Correction Approved',
+          actor: reviewerName,
+          details: `Correction approved by ${reviewerName}: Login ${targetCorr.requestedLogin}, Logout ${targetCorr.requestedLogout}`,
+        };
 
-          await this.markAttendance({
-            ...targetRecord,
-            loginTime: corr.requestedLogin,
-            logoutTime: corr.requestedLogout,
-            status: 'present',
-            workHours: workMins,
-            correctionStatus: 'approved',
-            auditLog: [newAuditEntry, ...auditLog],
-          });
-        }
+        const existingAudit = targetRecord?.auditLog || [];
+
+        await this.markAttendance({
+          ...(targetRecord || {
+            date: targetCorr.date,
+            email: targetCorr.employeeEmail,
+            name: targetCorr.employeeName,
+          }),
+          loginTime: targetCorr.requestedLogin,
+          logoutTime: targetCorr.requestedLogout,
+          status: 'present',
+          workHours: workMins,
+          correctionStatus: 'approved',
+          auditLog: [newAuditEntry, ...existingAudit],
+        });
       } else if (status === 'rejected') {
-        if (corr.attendanceId) {
+        if (targetCorr.attendanceId) {
           localAttendanceRecords = localAttendanceRecords.map((r) =>
-            String(r.id) === String(corr.attendanceId) ? { ...r, correctionStatus: 'rejected' } : r
+            String(r.id) === String(targetCorr.attendanceId) ? { ...r, correctionStatus: 'rejected' } : r
           );
         }
       }
+
+      if (isSupabaseConfigured) {
+        try {
+          const { error } = await supabase.from('attendance_corrections').update({
+            status,
+            reviewed_by: reviewerName,
+            rejection_reason: status === 'rejected' ? rejectionReason : null,
+          }).eq('id', id);
+          if (error) console.warn('[supabaseDb] reviewAttendanceCorrectionRequest error:', error.message);
+        } catch (e) { console.warn('[supabaseDb] reviewAttendanceCorrectionRequest exception:', e); }
+      }
+    }
+
+    notifySubscribers('attendance_records');
+  },
+
+  async deleteAttendanceCorrectionRequest(id: string): Promise<void> {
+    localAttendanceCorrections = localAttendanceCorrections.filter((c) => String(c.id) !== String(id));
+    if (isSupabaseConfigured) {
+      try {
+        const { error } = await supabase.from('attendance_corrections').delete().eq('id', id);
+        if (error) console.warn('[supabaseDb] deleteAttendanceCorrectionRequest error:', error.message);
+      } catch (e) { console.warn('[supabaseDb] deleteAttendanceCorrectionRequest exception:', e); }
     }
     notifySubscribers('attendance_records');
   },
+
+
 
 
   // --- LEAVE REQUESTS ---
