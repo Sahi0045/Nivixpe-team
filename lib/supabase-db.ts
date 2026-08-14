@@ -1,5 +1,6 @@
 import { supabase, isSupabaseConfigured } from './supabase';
 import { normalizeEmail, normalizeName } from './utils';
+import { calculateSessionMinutes, getCurrentTimeString } from './attendance-utils';
 
 import {
   TEAM_MEMBERS,
@@ -1523,19 +1524,19 @@ export const supabaseDb = {
           localAttendanceRecords = data.map((r: any) => ({
             id: String(r.id),
             date: r.date,
-            email: r.email,
+            email: normalizeEmail(r.email),
             name: r.name ?? undefined,
-            loginTime: r.login_time ?? r.loginTime,
-            logoutTime: r.logout_time ?? r.logoutTime,
+            loginTime: r.login_time ?? r.loginTime ?? undefined,
+            logoutTime: r.logout_time ?? r.logoutTime ?? undefined,
             status: r.status,
-            workHours: r.work_hours ?? r.workHours ?? 0,
+            workHours: typeof r.work_hours === 'number' ? r.work_hours : (typeof r.workHours === 'number' ? r.workHours : 0),
             lateMinutes: r.late_minutes ?? r.lateMinutes ?? 0,
             expectedLogin: r.expected_login ?? r.expectedLogin ?? '09:30 AM',
             correctionStatus: r.correction_status ?? r.correctionStatus ?? 'none',
-            leaveRequestId: r.leave_request_id ?? r.leaveRequestId,
-            currentSessionStart: r.current_session_start ?? r.currentSessionStart ?? null,
-            isPaused: r.is_paused ?? r.isPaused ?? false,
-            auditLog: r.audit_log ?? r.auditLog ?? [],
+            leaveRequestId: r.leave_request_id ?? r.leaveRequestId ?? undefined,
+            currentSessionStart: (r.current_session_start ?? r.currentSessionStart) || undefined,
+            isPaused: Boolean(r.is_paused ?? r.isPaused ?? false),
+            auditLog: Array.isArray(r.audit_log) ? r.audit_log : (Array.isArray(r.auditLog) ? r.auditLog : []),
           })) as AttendanceRecord[];
           return localAttendanceRecords;
         }
@@ -1545,31 +1546,33 @@ export const supabaseDb = {
   },
 
   async markAttendance(record: Omit<AttendanceRecord, 'id'> & { id?: string; _id?: string }): Promise<void> {
+    const normEmail = normalizeEmail(record.email);
+    const cleanRecord = { ...record, email: normEmail };
     const index = localAttendanceRecords.findIndex(
-      (r) => r.date === record.date && r.email === record.email
+      (r) => r.date === cleanRecord.date && normalizeEmail(r.email) === normEmail
     );
     if (index >= 0) {
-      localAttendanceRecords[index] = { ...localAttendanceRecords[index], ...record };
+      localAttendanceRecords[index] = { ...localAttendanceRecords[index], ...cleanRecord };
     } else {
-      localAttendanceRecords.push({ ...record });
+      localAttendanceRecords.push({ ...cleanRecord });
     }
 
     if (isSupabaseConfigured) {
       try {
         const payload: any = {
-          date: record.date,
-          email: record.email,
-          login_time: record.loginTime ?? null,
-          logout_time: record.logoutTime ?? null,
-          status: record.status,
-          work_hours: record.workHours ?? 0,
-          late_minutes: record.lateMinutes ?? 0,
-          expected_login: record.expectedLogin ?? '09:30 AM',
-          correction_status: record.correctionStatus ?? 'none',
-          leave_request_id: record.leaveRequestId ?? null,
-          audit_log: record.auditLog ?? [],
-          current_session_start: record.currentSessionStart ?? null,
-          is_paused: record.isPaused ?? false,
+          date: cleanRecord.date,
+          email: normEmail,
+          login_time: cleanRecord.loginTime ?? null,
+          logout_time: cleanRecord.logoutTime ?? null,
+          status: cleanRecord.status,
+          work_hours: cleanRecord.workHours ?? 0,
+          late_minutes: cleanRecord.lateMinutes ?? 0,
+          expected_login: cleanRecord.expectedLogin ?? '09:30 AM',
+          correction_status: cleanRecord.correctionStatus ?? 'none',
+          leave_request_id: cleanRecord.leaveRequestId ?? null,
+          audit_log: cleanRecord.auditLog ?? [],
+          current_session_start: cleanRecord.currentSessionStart ?? null,
+          is_paused: cleanRecord.isPaused ?? false,
         };
         const { error } = await supabase
           .from('attendance_records')
@@ -1579,11 +1582,11 @@ export const supabaseDb = {
           if (error.message?.includes('work_hours') || error.message?.includes('correction_status') || error.message?.includes('audit_log')) {
             console.warn('[supabaseDb] Retrying markAttendance with base columns.');
             const { error: e2 } = await supabase.from('attendance_records').upsert([{
-              date: record.date,
-              email: record.email,
-              login_time: record.loginTime ?? null,
-              logout_time: record.logoutTime ?? null,
-              status: record.status,
+              date: cleanRecord.date,
+              email: normEmail,
+              login_time: cleanRecord.loginTime ?? null,
+              logout_time: cleanRecord.logoutTime ?? null,
+              status: cleanRecord.status,
             }], { onConflict: 'date,email' });
             if (e2) console.warn('[supabaseDb] markAttendance base retry error:', e2.message);
           } else {
@@ -1593,6 +1596,137 @@ export const supabaseDb = {
       } catch (e) { console.warn('[supabaseDb] markAttendance exception:', e); }
     }
     notifySubscribers('attendance_records');
+  },
+
+  async pauseAttendance(date: string, email: string, note?: string): Promise<number> {
+    const normEmail = normalizeEmail(email);
+    const records = await this.getAttendanceRecords();
+    const existing = records.find(r => r.date === date && normalizeEmail(r.email) === normEmail);
+    if (!existing) throw new Error('No attendance record found for today.');
+    if (existing.isPaused) return existing.workHours || 0;
+
+    const nowStr = getCurrentTimeString();
+    const sessionStart = existing.currentSessionStart || existing.loginTime || nowStr;
+    const sessionMins = calculateSessionMinutes(sessionStart, nowStr);
+    const newTotalMins = (existing.workHours || 0) + sessionMins;
+
+    const auditLog: AttendanceAuditLog[] = [
+      ...(existing.auditLog || []),
+      {
+        id: `audit-${Date.now()}`,
+        timestamp: new Date().toISOString(),
+        action: 'paused',
+        actor: normEmail,
+        changedBy: normEmail,
+        note: note ? `Took break (${note}) at ${nowStr}. Session: ${sessionMins}m.` : `Paused at ${nowStr}. Session duration: ${sessionMins}m.`,
+        details: note ? `Took break (${note}) at ${nowStr}. Session: ${sessionMins}m.` : `Paused at ${nowStr}. Session duration: ${sessionMins}m.`,
+      },
+    ];
+
+    await this.markAttendance({
+      ...existing,
+      logoutTime: nowStr,
+      workHours: newTotalMins,
+      currentSessionStart: undefined,
+      isPaused: true,
+      auditLog,
+    });
+
+    return newTotalMins;
+  },
+
+  async resumeAttendance(date: string, email: string): Promise<void> {
+    const normEmail = normalizeEmail(email);
+    const records = await this.getAttendanceRecords();
+    const existing = records.find(r => r.date === date && normalizeEmail(r.email) === normEmail);
+    const nowStr = getCurrentTimeString();
+
+    if (!existing) {
+      // First login of the day
+      const auditLog: AttendanceAuditLog[] = [
+        {
+          id: `audit-${Date.now()}`,
+          timestamp: new Date().toISOString(),
+          action: 'created',
+          actor: normEmail,
+          changedBy: normEmail,
+          note: `Initial check-in at ${nowStr}`,
+          details: `Initial check-in at ${nowStr}`,
+        },
+      ];
+      await this.markAttendance({
+        date,
+        email: normEmail,
+        loginTime: nowStr,
+        status: 'present',
+        currentSessionStart: nowStr,
+        isPaused: false,
+        workHours: 0,
+        auditLog,
+      });
+      return;
+    }
+
+    const auditLog: AttendanceAuditLog[] = [
+      ...(existing.auditLog || []),
+      {
+        id: `audit-${Date.now()}`,
+        timestamp: new Date().toISOString(),
+        action: 'resumed',
+        actor: normEmail,
+        changedBy: normEmail,
+        note: `Resumed work session at ${nowStr}`,
+        details: `Resumed work session at ${nowStr}`,
+      },
+    ];
+
+    await this.markAttendance({
+      ...existing,
+      currentSessionStart: nowStr,
+      isPaused: false,
+      logoutTime: undefined,
+      auditLog,
+    });
+  },
+
+  async logoutAttendance(date: string, email: string): Promise<number> {
+    const normEmail = normalizeEmail(email);
+    const records = await this.getAttendanceRecords();
+    const existing = records.find(r => r.date === date && normalizeEmail(r.email) === normEmail);
+    if (!existing) throw new Error('No attendance record found for today.');
+
+    const nowStr = getCurrentTimeString();
+    let accumulated = existing.workHours || 0;
+
+    if (!existing.isPaused) {
+      const sessionStart = existing.currentSessionStart || existing.loginTime || nowStr;
+      const sessionMins = calculateSessionMinutes(sessionStart, nowStr);
+      accumulated += sessionMins;
+    }
+
+    const auditLog: AttendanceAuditLog[] = [
+      ...(existing.auditLog || []),
+      {
+        id: `audit-${Date.now()}`,
+        timestamp: new Date().toISOString(),
+        action: 'updated',
+        actor: normEmail,
+        changedBy: normEmail,
+        note: `Final logout at ${nowStr}. Total work duration: ${accumulated}m.`,
+        details: `Final logout at ${nowStr}. Total work duration: ${accumulated}m.`,
+      },
+    ];
+
+    await this.markAttendance({
+      ...existing,
+      logoutTime: nowStr,
+      workHours: accumulated,
+      currentSessionStart: undefined,
+      isPaused: true,
+      auditLog,
+    });
+
+    return accumulated;
   },
 
 

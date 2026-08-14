@@ -1,6 +1,7 @@
 import { query, mutation } from "./_generated/server";
 import { v } from "convex/values";
 import { createNotification } from "./notifications";
+import { calculateSessionMinutes, getCurrentTimeString } from "../lib/attendance-utils";
 
 // Get all attendance records (limited)
 export const getAll = query({
@@ -131,21 +132,8 @@ export const update = mutation({
     let finalUpdates = { ...updates } as any;
 
     if (updates.logoutTime) {
-      const sessionStart = attendance.currentSessionStart || attendance.loginTime || "00:00";
-      
-      // Calculate minutes between sessionStart and updates.logoutTime
-      const [startH, startM] = sessionStart.split(":").map(Number);
-      const [endH, endM] = updates.logoutTime.split(":").map(Number);
-      
-      let startMin = startH * 60 + startM;
-      let endMin = endH * 60 + endM;
-      
-      if (endMin < startMin) {
-        // Handle wrap-around past midnight
-        endMin += 24 * 60;
-      }
-      
-      const sessionMinutes = Math.max(0, endMin - startMin);
+      const sessionStart = attendance.currentSessionStart || attendance.loginTime || getCurrentTimeString();
+      const sessionMinutes = calculateSessionMinutes(sessionStart, updates.logoutTime);
       const newWorkHours = (attendance.workHours || 0) + sessionMinutes;
       
       finalUpdates.workHours = newWorkHours;

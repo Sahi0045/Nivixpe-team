@@ -29,10 +29,13 @@ export interface WorkTask {
 }
 
 export interface AttendanceAuditLog {
+  id?: string;
   timestamp: string;
   action: string;
-  actor: string;
+  actor?: string;
+  changedBy?: string;
   details?: string;
+  note?: string;
 }
 
 export interface AttendanceRecord {

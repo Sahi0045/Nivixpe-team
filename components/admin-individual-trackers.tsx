@@ -208,7 +208,7 @@ export function AdminIndividualTrackers({
                             <span>{record.date}</span>
                             <span className="capitalize">{record.status}</span>
                             <span className="text-muted-foreground">
-                              {record.loginTime || '—'} → {record.logoutTime || (record.status === 'present' && !record.isPaused ? 'Active' : '—')}
+                              {record.loginTime || '—'} → {record.isPaused ? 'On Break' : record.logoutTime || (record.status === 'present' ? 'Active' : '—')}
                               {record.workHours !== undefined && ` (${Math.floor(record.workHours / 60)}h ${record.workHours % 60}m)`}
                             </span>
                           </div>

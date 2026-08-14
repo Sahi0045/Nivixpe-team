@@ -3,7 +3,7 @@
 import { Header } from '@/components/header';
 import { useAuth } from '@/app/providers';
 import { useState, useEffect, useCallback } from 'react';
-import { supabaseDb, AttendanceRecord, LeaveRequest, TeamMember } from '@/lib/supabase-db';
+import { supabaseDb, AttendanceRecord, LeaveRequest, TeamMember, AttendanceAuditLog } from '@/lib/supabase-db';
 import {
   CheckCircle,
   Clock,
@@ -21,20 +21,30 @@ import {
   Moon,
   PlayCircle,
   PauseCircle,
+  Coffee,
+  History,
+  Sparkles,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
 import { cn, normalizeEmail } from '@/lib/utils';
+import {
+  calculateSessionMinutes,
+  formatMinutes,
+  getCurrentTimeString,
+  formatTimeDisplay,
+} from '@/lib/attendance-utils';
 import { isNightShiftWorker, getAttendanceShiftNote, NIGHT_SHIFT_START } from '@/lib/attendance-shift';
 import { toast } from 'sonner';
 
-/* ─── helpers ─────────────────────────────────────────────── */
-const fmt = (mins: number) => `${Math.floor(mins / 60)}h ${mins % 60}m`;
 const pad = (n: number) => String(n).padStart(2, '0');
 
 export default function AttendancePage() {
   const { user } = useAuth();
-  const [tick, setTick] = useState(0);          // re-render every second
+  const [tick, setTick] = useState(0); // re-render every second
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [showAuditLog, setShowAuditLog] = useState(false);
 
   const d = new Date();
   const today = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
@@ -42,6 +52,7 @@ export default function AttendancePage() {
   const [todayAttendance, setTodayAttendance] = useState<AttendanceRecord[]>([]);
   const [activeLeavesToday, setActiveLeavesToday] = useState<LeaveRequest[]>([]);
   const [allMembers, setAllMembers] = useState<TeamMember[]>([]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const loadData = async () => {
     const records = await supabaseDb.getAttendanceRecords();
@@ -77,9 +88,10 @@ export default function AttendancePage() {
     };
   }, [today]);
 
-  const myAttendance = todayAttendance.find(a => a.email === (user?.email ? normalizeEmail(user.email) : ''));
+  const userEmailNorm = user?.email ? normalizeEmail(user.email) : '';
+  const myAttendance = todayAttendance.find(a => normalizeEmail(a.email) === userEmailNorm);
 
-  /* ── Tick every second ── */
+  /* ── Tick every second for live timers ── */
   useEffect(() => {
     const id = setInterval(() => setTick(t => t + 1), 1000);
     return () => clearInterval(id);
@@ -88,30 +100,35 @@ export default function AttendancePage() {
   const now = new Date();
   const currentTime = `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
 
-  /* ── Live work stats ── */
+  /* ── Live work & break stats ── */
   const getLiveWorkStats = useCallback(() => {
-    if (!myAttendance) return { sessionMins: 0, totalMins: 0, isActive: false };
-    const accumulated = myAttendance.workHours || 0;
-    const activeStart = (myAttendance as any).currentSessionStart;
-    if (activeStart && !(myAttendance as any).isPaused) {
-      const [startH, startM] = activeStart.split(':').map(Number);
-      const n = new Date();
-      let start = startH * 60 + startM;
-      let curr = n.getHours() * 60 + n.getMinutes();
-      if (curr < start) curr += 1440;
-      const session = Math.max(0, curr - start);
-      return { sessionMins: session, totalMins: accumulated + session, isActive: true };
+    if (!myAttendance) {
+      return { sessionMins: 0, totalMins: 0, isActive: false, isPaused: false, breakMins: 0 };
     }
-    return { sessionMins: 0, totalMins: accumulated, isActive: false };
+
+    const accumulated = myAttendance.workHours || 0;
+    const activeStart = myAttendance.currentSessionStart;
+    const isPaused = Boolean(myAttendance.isPaused);
+
+    if (activeStart && !isPaused) {
+      const session = calculateSessionMinutes(activeStart);
+      return { sessionMins: session, totalMins: accumulated + session, isActive: true, isPaused: false, breakMins: 0 };
+    }
+
+    if (isPaused && myAttendance.logoutTime) {
+      const breakMins = calculateSessionMinutes(myAttendance.logoutTime);
+      return { sessionMins: 0, totalMins: accumulated, isActive: false, isPaused: true, breakMins };
+    }
+
+    return { sessionMins: 0, totalMins: accumulated, isActive: false, isPaused: false, breakMins: 0 };
   }, [myAttendance, tick]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const { sessionMins, totalMins, isActive } = getLiveWorkStats();
+  const { sessionMins, totalMins, isActive, isPaused, breakMins } = getLiveWorkStats();
 
   /* ── Summary counts ── */
   const activeMembers = allMembers.filter(m => m.status === 'active');
-
-  // Construct a virtual list of attendance records for all active members + any extra records
   const activeEmails = new Set(activeMembers.map(m => m.email.toLowerCase()));
+
   const extraRecords = todayAttendance
     .filter(a => !activeEmails.has(a.email.toLowerCase()))
     .map(a => ({
@@ -160,63 +177,47 @@ export default function AttendancePage() {
     a => a.status === 'present' && a.workHours !== undefined && a.workHours < 240
   ).length;
 
-  /* ── Handlers ── */
-  const handleMarkLogin = async () => {
-    if (!user) return;
-    const loginTime = new Date().toTimeString().split(' ')[0].substring(0, 5);
+  /* ── Handlers for Start, Pause, Resume, Logout ── */
+  const handleResumeOrStartWork = async () => {
+    if (!user || isSubmitting) return;
+    setIsSubmitting(true);
     try {
-      if (myAttendance) {
-        // Resume: keep accumulated workHours, start new session
-        await supabaseDb.markAttendance({
-          ...myAttendance,
-          currentSessionStart: loginTime,
-          isPaused: false,
-          logoutTime: undefined,
-        });
-      } else {
-        // First login of the day
-        await supabaseDb.markAttendance({
-          date: today,
-          email: user.email,
-          loginTime,
-          status: 'present',
-          currentSessionStart: loginTime,
-          isPaused: false,
-          workHours: 0,
-        });
-      }
+      await supabaseDb.resumeAttendance(today, user.email);
       await loadData();
-      toast.success(`Logged in at ${loginTime}. Minimum 4h required.`);
+      const isResume = Boolean(myAttendance);
+      toast.success(isResume ? 'Work session resumed! Work hours tracking active.' : 'Logged in successfully! Welcome to work.');
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to log in.');
+      toast.error(err instanceof Error ? err.message : 'Failed to start/resume work session.');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
-  const handleMarkLogout = async () => {
-    if (!user || !myAttendance) return;
-    const logoutTime = new Date().toTimeString().split(' ')[0].substring(0, 5);
+  const handleTakeBreak = async () => {
+    if (!user || !myAttendance || isSubmitting) return;
+    setIsSubmitting(true);
     try {
-      // Accumulate session minutes before pausing
-      const sessionStart = (myAttendance as any).currentSessionStart || myAttendance.loginTime || '00:00';
-      const [sh, sm] = sessionStart.split(':').map(Number);
-      const n = new Date();
-      let s = sh * 60 + sm;
-      let c = n.getHours() * 60 + n.getMinutes();
-      if (c < s) c += 1440;
-      const sessionMinsNow = Math.max(0, c - s);
-      const accumulated = (myAttendance.workHours || 0) + sessionMinsNow;
-
-      await supabaseDb.markAttendance({
-        ...myAttendance,
-        logoutTime,
-        workHours: accumulated,
-        currentSessionStart: undefined,
-        isPaused: true,
-      });
+      const newTotal = await supabaseDb.pauseAttendance(today, user.email, 'Break');
       await loadData();
-      toast.success(`Logged out at ${logoutTime}. Total: ${fmt(accumulated)}`);
-    } catch {
-      toast.error('Failed to log out.');
+      toast.success(`Break started! Total work recorded so far: ${formatMinutes(newTotal)}`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to pause work session.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleCompleteDay = async () => {
+    if (!user || !myAttendance || isSubmitting) return;
+    setIsSubmitting(true);
+    try {
+      const finalTotal = await supabaseDb.logoutAttendance(today, user.email);
+      await loadData();
+      toast.success(`Logged out for today! Total work duration: ${formatMinutes(finalTotal)}`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to log out.');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -232,11 +233,7 @@ export default function AttendancePage() {
   const liveMinutes = (record: any) => {
     let mins = record.workHours || 0;
     if (record.currentSessionStart && !record.isPaused) {
-      const [sh, sm] = record.currentSessionStart.split(':').map(Number);
-      const n = new Date();
-      let s = sh * 60 + sm, c = n.getHours() * 60 + n.getMinutes();
-      if (c < s) c += 1440;
-      mins += Math.max(0, c - s);
+      mins += calculateSessionMinutes(record.currentSessionStart);
     }
     return mins;
   };
@@ -247,7 +244,7 @@ export default function AttendancePage() {
       ['Email', 'Status', 'Login', 'Logout', 'Work Hours'],
       ...filteredAttendance.map(r => {
         const m = liveMinutes(r);
-        return [r.email, r.status, r.loginTime || '', r.logoutTime || '', fmt(m)];
+        return [r.email, r.status, r.loginTime || '', r.logoutTime || '', formatMinutes(m)];
       }),
     ];
     const csv = rows.map(r => r.join(',')).join('\n');
@@ -271,14 +268,14 @@ export default function AttendancePage() {
         ? <span className="att-badge att-badge-leave">On Leave</span>
         : <span className="att-badge att-badge-absent">Absent</span>;
     }
-    if (record.isPaused) return <span className="att-badge att-badge-paused">Paused</span>;
-    if (!record.logoutTime) return <span className="att-badge att-badge-active">● Active</span>;
-    return <span className="att-badge att-badge-done">Done</span>;
+    if (record.isPaused) return <span className="att-badge att-badge-paused">⏸ On Break</span>;
+    if (record.currentSessionStart && !record.isPaused) return <span className="att-badge att-badge-active">● Active</span>;
+    if (record.logoutTime) return <span className="att-badge att-badge-done">✓ Logged Out</span>;
+    return <span className="att-badge att-badge-done">Present</span>;
   };
 
   return (
     <>
-      {/* ── Inline styles for this page ── */}
       <style>{`
         .att-gradient-hero {
           background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 50%, #0f172a 100%);
@@ -323,8 +320,6 @@ export default function AttendancePage() {
         .att-hours-bar { height: 4px; border-radius: 9999px; background: #e2e8f0; overflow: hidden; margin-top: 6px; }
         .att-hours-bar-fill { height: 100%; border-radius: 9999px; transition: width .6s ease; }
         @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.6} }
-        @keyframes spin-slow { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
-        .att-spin { animation: spin-slow 4s linear infinite; }
       `}</style>
 
       <div className="flex-1 overflow-y-auto bg-slate-50">
@@ -353,25 +348,35 @@ export default function AttendancePage() {
                   <div className="flex flex-wrap gap-3">
                     <div className="att-glass rounded-xl px-4 py-2 flex items-center gap-2 text-sm font-semibold">
                       <Timer className="h-4 w-4 text-indigo-300" />
-                      Total: <span className="text-white">{fmt(totalMins)}</span>
+                      Total Work: <span className="text-white font-mono">{formatMinutes(totalMins)}</span>
                       {isActive && <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />}
                     </div>
+
                     {isActive && (
                       <div className="att-glass rounded-xl px-4 py-2 flex items-center gap-2 text-sm font-semibold">
                         <Zap className="h-4 w-4 text-emerald-300" />
-                        Session: <span className="text-emerald-300">{fmt(sessionMins)}</span>
+                        Current Session: <span className="text-emerald-300 font-mono">{formatMinutes(sessionMins)}</span>
                       </div>
                     )}
+
+                    {isPaused && (
+                      <div className="att-glass rounded-xl px-4 py-2 flex items-center gap-2 text-sm font-semibold border-amber-500/30 bg-amber-500/10">
+                        <Coffee className="h-4 w-4 text-amber-300" />
+                        On Break for: <span className="text-amber-300 font-mono">{formatMinutes(breakMins)}</span>
+                      </div>
+                    )}
+
                     {myAttendance.loginTime && (
                       <div className="att-glass rounded-xl px-4 py-2 flex items-center gap-2 text-sm">
                         <LogIn className="h-4 w-4 text-slate-300" />
-                        In: <span className="font-bold">{myAttendance.loginTime}</span>
+                        In: <span className="font-bold font-mono">{formatTimeDisplay(myAttendance.loginTime)}</span>
                       </div>
                     )}
-                    {myAttendance.logoutTime && (
+
+                    {myAttendance.logoutTime && isPaused && (
                       <div className="att-glass rounded-xl px-4 py-2 flex items-center gap-2 text-sm">
-                        <LogOut className="h-4 w-4 text-slate-300" />
-                        Out: <span className="font-bold">{myAttendance.logoutTime}</span>
+                        <PauseCircle className="h-4 w-4 text-amber-300" />
+                        Paused at: <span className="font-bold font-mono">{formatTimeDisplay(myAttendance.logoutTime)}</span>
                       </div>
                     )}
                   </div>
@@ -379,27 +384,59 @@ export default function AttendancePage() {
 
                 {/* Action buttons */}
                 {user && (
-                  <div className="flex flex-wrap gap-3">
+                  <div className="flex flex-wrap gap-3 items-center">
                     {!myAttendance ? (
                       <button
-                        onClick={handleMarkLogin}
-                        className="flex items-center gap-2 bg-emerald-500 hover:bg-emerald-400 text-white font-bold px-6 py-2.5 rounded-xl shadow-lg shadow-emerald-900/40 transition-all active:scale-95"
+                        onClick={handleResumeOrStartWork}
+                        disabled={isSubmitting}
+                        className="flex items-center gap-2 bg-emerald-500 hover:bg-emerald-400 text-white font-bold px-6 py-3 rounded-xl shadow-lg shadow-emerald-900/40 transition-all active:scale-95 disabled:opacity-50"
                       >
                         <PlayCircle className="h-5 w-5" /> Start Work / Log In
                       </button>
                     ) : isActive ? (
-                      <button
-                        onClick={handleMarkLogout}
-                        className="flex items-center gap-2 bg-amber-500 hover:bg-amber-400 text-white font-bold px-6 py-2.5 rounded-xl shadow-lg shadow-amber-900/40 transition-all active:scale-95"
-                      >
-                        <PauseCircle className="h-5 w-5" /> Pause / Log Out
-                      </button>
+                      <>
+                        <button
+                          onClick={handleTakeBreak}
+                          disabled={isSubmitting}
+                          className="flex items-center gap-2 bg-amber-500 hover:bg-amber-400 text-white font-bold px-5 py-2.5 rounded-xl shadow-lg shadow-amber-900/40 transition-all active:scale-95 disabled:opacity-50"
+                        >
+                          <Coffee className="h-5 w-5" /> Take Break / Pause
+                        </button>
+                        <button
+                          onClick={handleCompleteDay}
+                          disabled={isSubmitting}
+                          className="flex items-center gap-2 bg-rose-600 hover:bg-rose-500 text-white font-bold px-5 py-2.5 rounded-xl shadow-lg shadow-rose-900/40 transition-all active:scale-95 disabled:opacity-50"
+                        >
+                          <LogOut className="h-5 w-5" /> Complete Day / Log Out
+                        </button>
+                      </>
                     ) : (
+                      <>
+                        <button
+                          onClick={handleResumeOrStartWork}
+                          disabled={isSubmitting}
+                          className="flex items-center gap-2 bg-emerald-500 hover:bg-emerald-400 text-white font-bold px-6 py-2.5 rounded-xl shadow-lg shadow-emerald-900/40 transition-all active:scale-95 disabled:opacity-50"
+                        >
+                          <PlayCircle className="h-5 w-5" /> Resume Work
+                        </button>
+                        <button
+                          onClick={handleCompleteDay}
+                          disabled={isSubmitting}
+                          className="flex items-center gap-2 bg-slate-700 hover:bg-slate-600 text-white font-bold px-5 py-2.5 rounded-xl shadow-lg transition-all active:scale-95 disabled:opacity-50"
+                        >
+                          <LogOut className="h-5 w-5" /> Complete Day / Log Out
+                        </button>
+                      </>
+                    )}
+
+                    {myAttendance?.auditLog && myAttendance.auditLog.length > 0 && (
                       <button
-                        onClick={handleMarkLogin}
-                        className="flex items-center gap-2 bg-indigo-500 hover:bg-indigo-400 text-white font-bold px-6 py-2.5 rounded-xl shadow-lg shadow-indigo-900/40 transition-all active:scale-95"
+                        onClick={() => setShowAuditLog(!showAuditLog)}
+                        className="flex items-center gap-1.5 text-xs text-indigo-300 hover:text-white bg-indigo-900/40 hover:bg-indigo-800/50 px-3 py-2 rounded-lg border border-indigo-500/30 transition-colors ml-auto"
                       >
-                        <PlayCircle className="h-5 w-5" /> Resume / Log In
+                        <History className="h-3.5 w-3.5" />
+                        {showAuditLog ? 'Hide Timeline' : 'Break Log'}
+                        {showAuditLog ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
                       </button>
                     )}
                   </div>
@@ -436,6 +473,34 @@ export default function AttendancePage() {
                 </div>
               )}
             </div>
+
+            {/* Audit Log Timeline Drawer */}
+            {showAuditLog && myAttendance?.auditLog && (
+              <div className="mt-6 pt-5 border-t border-indigo-500/20 space-y-3">
+                <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-indigo-200">
+                  <History className="h-4 w-4 text-indigo-400" />
+                  Today's Session & Break History
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5">
+                  {myAttendance.auditLog.map((log, idx) => (
+                    <div key={log.id || `${log.timestamp}-${idx}`} className="bg-slate-900/60 border border-indigo-500/20 rounded-xl p-3 text-xs space-y-1">
+                      <div className="flex justify-between items-center text-indigo-300">
+                        <span className="font-semibold capitalize text-white flex items-center gap-1.5">
+                          {log.action === 'paused' ? <Coffee className="h-3.5 w-3.5 text-amber-400" /> :
+                           log.action === 'resumed' ? <Zap className="h-3.5 w-3.5 text-emerald-400" /> :
+                           <Clock className="h-3.5 w-3.5 text-indigo-400" />}
+                          {log.action}
+                        </span>
+                        <span className="font-mono text-[11px] text-slate-400">
+                          {new Date(log.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                      </div>
+                      <p className="text-slate-300 text-[11.5px] leading-relaxed">{log.note || log.details || 'Session event'}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* ══ NIGHT SHIFT NOTICE ══════════════════════════════════ */}
@@ -461,13 +526,13 @@ export default function AttendancePage() {
               <p className="font-bold text-red-900 text-sm mb-2">MANDATORY: All employees (including Leads) MUST work minimum 4 hours per day.</p>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-1 text-xs text-red-800">
                 <ul className="space-y-1 list-disc list-inside">
-                  <li>Mark <strong>LOGIN</strong> when you start work</li>
-                  <li>Mark <strong>LOGOUT</strong> when you finish work</li>
-                  <li>System auto-calculates work hours</li>
+                  <li>Click <strong>Start Work</strong> when you check in</li>
+                  <li>Click <strong>Take Break</strong> during pauses/lunches</li>
+                  <li>Click <strong>Resume Work</strong> when back</li>
                 </ul>
                 <ul className="space-y-1 list-disc list-inside">
-                  <li><strong>Present</strong> if logged in, <strong>Absent</strong> if not</li>
-                  <li>Approved leaves are synced automatically</li>
+                  <li>Click <strong>Complete Day</strong> at final logout</li>
+                  <li>Minimum 4 hours active work per day required</li>
                   <li>You can only mark attendance for <strong>TODAY</strong></li>
                 </ul>
               </div>
@@ -507,7 +572,7 @@ export default function AttendancePage() {
               { label: 'Present', value: presentCount, sub: 'Logged in today', color: 'bg-emerald-50 border-emerald-100', iconBg: 'bg-emerald-100 text-emerald-600', Icon: CheckCircle },
               { label: 'On Leave', value: onLeaveCount, sub: 'Approved leave', color: 'bg-blue-50 border-blue-100', iconBg: 'bg-blue-100 text-blue-600', Icon: Calendar },
               { label: 'Absent', value: absentCount, sub: 'Not logged in', color: 'bg-red-50 border-red-100', iconBg: 'bg-red-100 text-red-600', Icon: AlertCircle },
-              { label: '< 4h', value: belowMinCount, sub: 'Below minimum', color: belowMinCount > 0 ? 'bg-orange-50 border-orange-200' : 'bg-slate-50 border-slate-100', iconBg: 'bg-orange-100 text-orange-600', Icon: Timer },
+              { label: '< 4h Goal', value: belowMinCount, sub: 'Below 4 hours', color: belowMinCount > 0 ? 'bg-orange-50 border-orange-200' : 'bg-slate-50 border-slate-100', iconBg: 'bg-orange-100 text-orange-600', Icon: Timer },
             ].map(({ label, value, sub, color, iconBg, Icon }) => (
               <div key={label} className={`att-stat-card border bg-white ${color} shadow-sm`}>
                 <div className={`att-icon-circle ${iconBg}`}>
@@ -574,7 +639,7 @@ export default function AttendancePage() {
                     <th className="text-left">Employee</th>
                     <th className="text-left">Status</th>
                     <th className="text-left">Login</th>
-                    <th className="text-left">Logout</th>
+                    <th className="text-left">Logout / Break</th>
                     <th className="text-right">Work Hours</th>
                   </tr>
                 </thead>
@@ -584,7 +649,9 @@ export default function AttendancePage() {
                       const mins = liveMinutes(record);
                       const isSufficient = mins >= 240;
                       const isActiveRow = (record as any).currentSessionStart && !(record as any).isPaused;
+                      const isPausedRow = Boolean((record as any).isPaused);
                       const memberName = record.name || allMembers.find(m => m.email === record.email)?.name || record.email;
+
                       return (
                         <tr key={record.email + record.date}>
                           <td>
@@ -598,24 +665,31 @@ export default function AttendancePage() {
                           <td>{statusBadge(record)}</td>
                           <td>
                             <span className="font-mono text-slate-700 text-sm">
-                              {record.loginTime || <span className="text-slate-300">—</span>}
+                              {formatTimeDisplay(record.loginTime)}
                             </span>
                           </td>
                           <td>
                             <span className="font-mono text-slate-700 text-sm">
-                              {record.logoutTime
-                                ? record.logoutTime
-                                : isActiveRow
-                                ? <span className="text-emerald-500 font-semibold text-xs">● Active</span>
-                                : <span className="text-slate-300">—</span>
-                              }
+                              {isActiveRow ? (
+                                <span className="text-emerald-600 font-semibold text-xs flex items-center gap-1">
+                                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" /> ● Active
+                                </span>
+                              ) : isPausedRow ? (
+                                <span className="text-amber-600 font-semibold text-xs flex items-center gap-1">
+                                  <Coffee className="h-3 w-3" /> On Break ({formatTimeDisplay(record.logoutTime)})
+                                </span>
+                              ) : record.logoutTime ? (
+                                formatTimeDisplay(record.logoutTime)
+                              ) : (
+                                <span className="text-slate-300">—</span>
+                              )}
                             </span>
                           </td>
                           <td className="text-right">
                             {record.status === 'present' ? (
                               <div className="flex flex-col items-end gap-1">
                                 <span className={`att-badge ${isSufficient ? 'att-badge-ok' : 'att-badge-warn'}`}>
-                                  {fmt(mins)} {!isSufficient && '⚠️'}
+                                  {formatMinutes(mins)} {!isSufficient && '⚠️'}
                                 </span>
                                 <div className="att-hours-bar w-20">
                                   <div
