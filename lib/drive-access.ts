@@ -12,7 +12,7 @@ export const DRIVE_FOLDERS: { id: DriveFolder; label: string; description: strin
 
 export function canAccessAllDriveFolders(user: User | null): boolean {
   if (!user) return false;
-  return user.isSuperAdmin === true || user.role === 'CTO' || user.role === 'COO' || user.role === 'Product Manager';
+  return user.isSuperAdmin === true || user.role === 'CTO' || user.role === 'COO' || user.role === 'Product Manager' || user.role === 'Legal';
 }
 
 export function getUserDriveFolder(user: User | null): DriveFolder {

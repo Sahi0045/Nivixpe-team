@@ -485,13 +485,15 @@ function AttendanceModal({ member, onClose, currentUser }: { member: TeamMember,
   const canView = currentUser?.email === member.email || 
                   currentUser?.isSuperAdmin || 
                   currentUser?.role === 'CTO' || 
-                  currentUser?.role === 'COO';
+                  currentUser?.role === 'COO' ||
+                  currentUser?.role === 'Legal';
 
   const canGrantAccess = currentUser?.isSuperAdmin || 
                          currentUser?.role === 'CTO' || 
-                         currentUser?.role === 'COO';
+                         currentUser?.role === 'COO' ||
+                         currentUser?.role === 'Legal';
 
-  const memberAlreadyHasFullAccess = ['CEO', 'CTO', 'COO'].includes(member.role);
+  const memberAlreadyHasFullAccess = ['CEO', 'CTO', 'COO', 'Legal'].includes(member.role);
 
   const toggleFolder = (folderId: string) => {
     setSelectedFolders(prev =>

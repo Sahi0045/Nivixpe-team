@@ -135,7 +135,7 @@ export default function AdminPage() {
           <Card className="border-red-300 bg-red-50">
             <CardContent className="pt-6">
               <p className="text-red-900">
-                Only CEO, CTO, and COO can access the admin panel.
+                Only CEO, CTO, COO, and Legal Head can access the admin panel.
               </p>
             </CardContent>
           </Card>
@@ -151,7 +151,13 @@ export default function AdminPage() {
   const missedWork = allTasks.filter((w) => w.status === 'missed');
 
   const panelTitle =
-    user.isSuperAdmin ? 'CEO Admin Panel' : user.role === 'CTO' ? 'CTO Admin Panel' : 'COO Admin Panel';
+    user.isSuperAdmin 
+      ? 'CEO Admin Panel' 
+      : user.role === 'CTO' 
+      ? 'CTO Admin Panel' 
+      : user.role === 'Legal'
+      ? 'Legal Head Admin Panel'
+      : 'COO Admin Panel';
 
   // Calculate storage occupancy
   const storageStats = allDriveDocs.reduce((acc, doc) => {

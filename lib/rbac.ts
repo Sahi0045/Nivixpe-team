@@ -112,15 +112,19 @@ export const ROLE_PERMISSIONS: Record<string, string[]> = {
   'Legal': [
     'dashboard',
     'team-directory',
-    'legal',
-    'meetings',
+    'work-tracker',
+    'work-allocation',
     'attendance',
     'attendance-history',
     'leave-management',
+    'meetings',
+    'legal',
     'proof-of-work',
     'drive',
+    'tech-panel',
     'notifications',
     'settings',
+    'admin',
   ],
   'Legal Intern': [
     'dashboard',
@@ -248,8 +252,8 @@ export function canAssignTasks(user: User | null): boolean {
 
 export function canApprovePoW(user: User | null): boolean {
   if (!user) return false;
-  // CEO (SuperAdmin), CTO, COO, or Product Manager can approve Proof of Work
-  return user.isSuperAdmin || user.role === 'CTO' || user.role === 'COO' || user.role === 'Product Manager';
+  // CEO (SuperAdmin), CTO, COO, Product Manager, or Legal can approve Proof of Work
+  return user.isSuperAdmin || user.role === 'CTO' || user.role === 'COO' || user.role === 'Product Manager' || user.role === 'Legal';
 }
 
 export function canApproveLeave(user: User | null): boolean {
@@ -289,8 +293,8 @@ export function canAssignTasksTo(user: User | null, targetMember: any): boolean 
   // COO can assign to all teams
   if (user.role === 'COO') return true;
   
-  // Legal head can assign to Legal team
-  if (user.role === 'Legal' && targetMember.team === 'Legal') return true;
+  // Legal head can assign to anyone
+  if (user.role === 'Legal') return true;
   
   return false;
 }
@@ -333,9 +337,9 @@ export function getAssignableMembers(user: User | null, allMembers: any[]): any[
     return activeMembers;
   }
   
-  // Legal can assign to Legal team
+  // Legal sees all active members
   if (user.role === 'Legal') {
-    return activeMembers.filter(m => m.team === 'Legal');
+    return activeMembers;
   }
   
   return [];
@@ -343,8 +347,8 @@ export function getAssignableMembers(user: User | null, allMembers: any[]): any[
 
 export function canViewAllTasks(user: User | null): boolean {
   if (!user) return false;
-  // CEO, CTO, COO and Product Manager can view all tasks
-  return user.isSuperAdmin || user.role === 'CTO' || user.role === 'COO' || user.role === 'Product Manager';
+  // CEO, CTO, COO, Product Manager, and Legal can view all tasks
+  return user.isSuperAdmin || user.role === 'CTO' || user.role === 'COO' || user.role === 'Product Manager' || user.role === 'Legal';
 }
 
 export function canViewTeamTasks(user: User | null, taskAssignee: string, allMembers: any[]): boolean {
@@ -373,7 +377,7 @@ export function canViewTeamTasks(user: User | null, taskAssignee: string, allMem
   if (user.role === 'CMO' && (assigneeMember.team === 'Marketing' || assigneeMember.team === 'Design')) return true;
   if (user.role === 'DCMO' && assigneeMember.team === 'Marketing') return true;
   if (user.role === 'COO') return true; // COO can view all teams' tasks
-  if (user.role === 'Legal' && assigneeMember.team === 'Legal') return true;
+  if (user.role === 'Legal') return true;
   
   return false;
 }
@@ -381,8 +385,8 @@ export function canViewTeamTasks(user: User | null, taskAssignee: string, allMem
 export function getVisibleTasks(user: User | null, allTasks: any[], allMembers: any[]): any[] {
   if (!user) return [];
   
-  // CEO, CTO, and COO see all tasks
-  if (user.isSuperAdmin || user.role === 'CTO' || user.role === 'COO') return allTasks;
+  // CEO, CTO, COO, and Legal see all tasks
+  if (user.isSuperAdmin || user.role === 'CTO' || user.role === 'COO' || user.role === 'Legal') return allTasks;
   
   // Filter tasks based on what user can view
   return allTasks.filter(task => canViewTeamTasks(user, task.assignee, allMembers));
@@ -408,7 +412,7 @@ export function getTeamMembers(user: User | null, allMembers: any[]): any[] {
     return activeMembers.filter((m) => m.team === 'Business');
   }
   if (user.role === 'Legal') {
-    return activeMembers.filter((m) => m.team === 'Legal');
+    return activeMembers;
   }
   if (user.role === 'CMO') {
     return activeMembers.filter((m) => m.team === 'Marketing' || m.team === 'Design');
@@ -424,7 +428,7 @@ export function getTeamForUser(user: User | null): string {
 
 export function canAccessAdminPanel(user: User | null): boolean {
   if (!user) return false;
-  return user.isSuperAdmin || user.role === 'CTO' || user.role === 'COO' || user.role === 'Product Manager';
+  return user.isSuperAdmin || user.role === 'CTO' || user.role === 'COO' || user.role === 'Product Manager' || user.role === 'Legal';
 }
 
 export function canDeleteAllocatedTask(user: User | null, task?: any): boolean {
@@ -466,6 +470,7 @@ export function canManageTeamMembers(user: User | null): boolean {
     user.role === 'Admin' ||
     user.role === 'CTO' ||
     user.role === 'COO' ||
+    user.role === 'Legal' ||
     user.accessLevel === 'admin'
   );
 }

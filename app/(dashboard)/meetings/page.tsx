@@ -29,8 +29,8 @@ export default function MeetingsPage() {
     return () => unsub();
   }, []);
 
-  const canManageMeetings = user?.isSuperAdmin || user?.role === 'CEO' || user?.role === 'COO';
-
+  const [loading, setLoading] = useState(true);
+  const canManageMeetings = user?.isSuperAdmin || user?.role === 'CEO' || user?.role === 'COO' || user?.role === 'Legal';
   const [showScheduleForm, setShowScheduleForm] = useState(false);
   const [showMOMUpload, setShowMOMUpload] = useState<string | null>(null);
   const [isScheduling, setIsScheduling] = useState(false);
@@ -178,7 +178,7 @@ export default function MeetingsPage() {
               <div className="text-white">
                 <h2 className="text-2xl font-bold mb-2 flex items-center gap-2">
                   <Shield className="h-6 w-6" />
-                  {user?.role === 'CEO' ? 'CEO' : 'COO'} Meeting Management
+                  {user?.role === 'CEO' ? 'CEO' : user?.role === 'COO' ? 'COO' : 'Legal Head'} Meeting Management
                 </h2>
                 <p className="text-blue-100">Create meetings and add minutes after they are done</p>
               </div>

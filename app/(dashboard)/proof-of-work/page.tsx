@@ -88,7 +88,7 @@ export default function ProofOfWorkPage() {
     return () => unsub();
   }, [user?.name]);
 
-  const canViewAll = user?.isSuperAdmin || user?.role === 'CTO';
+  const canViewAll = user?.isSuperAdmin || user?.role === 'CTO' || user?.role === 'Legal';
   const isTeamHead = canAssignTasks(user) && !canViewAll;
 
   const displayProofOfWork = useMemo(() => {

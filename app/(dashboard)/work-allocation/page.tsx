@@ -64,9 +64,9 @@ export default function WorkAllocationPage() {
       return activeMembers
     }
 
-    // Legal head sees Legal team
+    // Legal head sees all teams (full access)
     if (user.role === 'Legal') {
-      return activeMembers.filter(m => m.team === 'Legal' || m.name === user.name)
+      return activeMembers
     }
     
     // Everyone else sees only themselves
@@ -116,25 +116,33 @@ export default function WorkAllocationPage() {
             ? "Distribute and track team workload across all departments" 
             : user?.role === 'CTO'
             ? "Full system access - View all team workload"
+            : user?.role === 'Legal'
+            ? "Full system access - View and manage all team workload"
             : "View team workload distribution"
         } 
       />
 
       <div className="p-6 space-y-6">
         {/* CEO/CTO Work Allocation Control */}
-        {(user?.isSuperAdmin || user?.role === 'CTO') && (
+        {(user?.isSuperAdmin || user?.role === 'CTO' || user?.role === 'Legal') && (
           <Card className="border-purple-300 bg-purple-50">
             <CardHeader className="flex flex-row items-center justify-between space-y-0">
               <CardTitle className="flex items-center gap-2">
                 <Shield className="h-5 w-5 text-purple-600" />
-                {user?.isSuperAdmin ? 'CEO Work Allocation Management' : 'CTO System Overview'}
+                {user?.isSuperAdmin 
+                  ? 'CEO Work Allocation Management' 
+                  : user?.role === 'CTO' 
+                  ? 'CTO System Overview' 
+                  : 'Legal Head System Overview'}
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
               <p className="text-sm text-purple-900">
                 {user?.isSuperAdmin 
                   ? 'As CEO, you have full control over team work allocation and task distribution. Monitor team capacity and optimize assignments across all departments.'
-                  : 'As CTO, you have full system access to view and manage all team work allocation and technical oversight.'
+                  : user?.role === 'CTO'
+                  ? 'As CTO, you have full system access to view and manage all team work allocation and technical oversight.'
+                  : 'As Legal Head, you have full system access to view and manage all team work allocation and compliance oversight.'
                 }
               </p>
               <div className="bg-white rounded-lg border border-purple-200 p-3 space-y-2">
@@ -174,7 +182,7 @@ export default function WorkAllocationPage() {
         )}
 
         {/* Team Lead Notice */}
-        {!user?.isSuperAdmin && user?.role !== 'CTO' && (user?.role === 'CSO' || user?.role === 'CMO' || user?.role === 'DCMO' || user?.role === 'COO' || user?.role === 'Legal') && (
+        {!user?.isSuperAdmin && user?.role !== 'CTO' && user?.role !== 'Legal' && (user?.role === 'CSO' || user?.role === 'CMO' || user?.role === 'DCMO' || user?.role === 'COO') && (
           <Card className="border-blue-300 bg-blue-50">
             <CardContent className="pt-6">
               <p className="text-sm text-blue-900">
@@ -208,7 +216,7 @@ export default function WorkAllocationPage() {
         <Card className="border-border">
           <CardHeader>
             <CardTitle>
-              {user?.isSuperAdmin || user?.role === 'CTO' 
+              {user?.isSuperAdmin || user?.role === 'CTO' || user?.role === 'Legal'
                 ? 'Team Workload Distribution' 
                 : filteredMembers.length > 1
                 ? 'Team Workload Distribution'

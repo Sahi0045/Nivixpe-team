@@ -22,7 +22,7 @@ function resolveUserFolder(team?: string): DriveFolder {
 }
 
 function canAccessAllFolders(role: string, isSuperAdmin?: boolean): boolean {
-  return isSuperAdmin === true || role === "CTO" || role === "COO" || role === "Product Manager";
+  return isSuperAdmin === true || role === "CTO" || role === "COO" || role === "Product Manager" || role === "Legal";
 }
 
 function canAccessFolder(

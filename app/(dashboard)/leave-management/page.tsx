@@ -467,7 +467,7 @@ export default function LeaveManagementPage() {
               <CardContent className="text-xs text-blue-900 space-y-1.5 leading-relaxed">
                 <p>• <strong>Working Days Only:</strong> Saturdays and Sundays are excluded automatically from leave calculations.</p>
                 <p>• <strong>Official Communication:</strong> Leave must be requested through this portal. Email notifications will be generated to PMO and Sahith (CEO).</p>
-                <p>• <strong>Approval Authority:</strong> CEO (Sahith), CTO (Shubham), CSO (Swaraag), COO (Siddhartha), and Product Managers can approve leave.</p>
+                <p>• <strong>Approval Authority:</strong> CEO (Sahith), CTO (Shubham), CSO (Swaraag), COO (Siddhartha), Legal Head (Kashish), and Product Managers can approve leave.</p>
                 <p>• <strong>Cancellation:</strong> Pending and future approved leaves can be cancelled by the employee prior to start date.</p>
               </CardContent>
             </Card>

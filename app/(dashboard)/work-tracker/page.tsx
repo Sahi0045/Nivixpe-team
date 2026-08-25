@@ -433,31 +433,39 @@ function WorkTrackerContent() {
   return (
     <div className="flex-1 overflow-y-auto">
       <Header 
-        title={user?.isSuperAdmin || user?.role === 'CTO' ? "All Team Work Trackers" : "Work Tracker"} 
+        title={user?.isSuperAdmin || user?.role === 'CTO' || user?.role === 'Legal' ? "All Team Work Trackers" : "Work Tracker"} 
         subtitle={
           user?.isSuperAdmin 
             ? "CEO Dashboard - View and manage all team members' work progress" 
             : user?.role === 'CTO'
             ? "CTO Dashboard - Full system access to all team work"
+            : user?.role === 'Legal'
+            ? "Legal Head Dashboard - Full system access to all team work"
             : "Track work tasks and completion"
         } 
       />
 
       <div className="p-6 space-y-6">
-        {/* CEO/CTO Overview */}
-        {(user?.isSuperAdmin || user?.role === 'CTO') && (
+        {/* CEO/CTO/Legal Overview */}
+        {(user?.isSuperAdmin || user?.role === 'CTO' || user?.role === 'Legal') && (
           <Card className="border-blue-300 bg-blue-50">
             <CardHeader className="flex flex-row items-center justify-between space-y-0">
               <CardTitle className="flex items-center gap-2">
                 <Shield className="h-5 w-5 text-blue-600" />
-                {user?.isSuperAdmin ? 'CEO Work Oversight - All Teams' : 'CTO System Overview - All Teams'}
+                {user?.isSuperAdmin 
+                  ? 'CEO Work Oversight - All Teams' 
+                  : user?.role === 'CTO' 
+                  ? 'CTO System Overview - All Teams' 
+                  : 'Legal Head System Overview - All Teams'}
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
               <p className="text-sm text-blue-900">
                 {user?.isSuperAdmin 
                   ? 'Complete overview of all team members\' work across the organization. Monitor progress, identify bottlenecks, and track strategic initiatives.'
-                  : 'Full system access to view and manage all team work. Technical oversight and cross-team coordination.'
+                  : user?.role === 'CTO'
+                  ? 'Full system access to view and manage all team work. Technical oversight and cross-team coordination.'
+                  : 'Full system access to view and manage all team work. Legal oversight and compliance coordination.'
                 }
               </p>
               <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
